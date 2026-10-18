@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Hypr Studio
+GenericName=Hyprland Customizer
+GenericName[de]=Hyprland gestalten
+Comment=Customize Hyprland and Waybar with a click
+Comment[de]=Hyprland und Waybar per Klick gestalten
+Exec=hypr-studio
+Icon=de.labtosostudios.hyprstudio
+Terminal=false
+Categories=Qt;Settings;DesktopSettings;
+Keywords=hyprland;waybar;theme;rice;gaps;blur;animation;
