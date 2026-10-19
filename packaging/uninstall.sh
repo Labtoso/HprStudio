@@ -6,6 +6,8 @@ CFG="${XDG_CONFIG_HOME:-$HOME/.config}"
 MARK="Hypr Studio (LabtosoStudios)"
 
 echo "==> Uninstalling Hypr Studio"
+# do not start sudo/pacman from inside the cloud folder (root cannot read FUSE folders)
+cd /tmp 2>/dev/null || cd /
 
 if command -v pacman >/dev/null 2>&1 && pacman -Qi labtoso-hyprstudio >/dev/null 2>&1; then
   sudo pacman -R --noconfirm labtoso-hyprstudio

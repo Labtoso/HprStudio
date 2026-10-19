@@ -47,30 +47,58 @@ def _v(k) -> int:
     return k.value if hasattr(k, "value") else int(k)
 
 
+MAX_KEYS = 4
+MOD_FLAGS = (("SUPER", Qt.KeyboardModifier.MetaModifier), ("CTRL", Qt.KeyboardModifier.ControlModifier),
+             ("ALT", Qt.KeyboardModifier.AltModifier), ("SHIFT", Qt.KeyboardModifier.ShiftModifier))
+
+
+def mods_of(m) -> list:
+    on = [mod for mod, flag in MOD_FLAGS if m & flag]
+    return [x for x in model.MODS if x in on]
+
+
+def combo_label(mods: list, key: str) -> str:
+    keyl = t("key." + key) if key and ("key." + key) in TEXT["de"] else key
+    order = [m for m in ("SUPER", "CTRL", "ALT", "SHIFT") if m in mods]
+    return " + ".join([t("mod." + m) for m in order] + ([keyl] if key else []))
+
+
+def parse_combo(text: str) -> tuple:
+    """„Strg + Shift + S“ oder „SUPER SHIFT, S“ → (mods, key)."""
+    parts = [x.strip() for x in text.replace(",", "+").replace(" ", "+").split("+") if x.strip()]
+    if not parts:
+        return [], ""
+    alias = dict(model.MOD_ALIAS, STRG="CTRL", STEUERUNG="CTRL", UMSCHALT="SHIFT")
+    mods = [alias[x.upper()] for x in parts[:-1] if x.upper() in alias]
+    return [m for m in model.MODS if m in mods], parts[-1]
+
+
 class KeyButton(QtWidgets.QPushButton):
-    """Linksklick: Kombination drücken (Esc bricht ab). Rechtsklick: Sondertasten oder von Hand eingeben."""
+    """Klicken, dann die ganze Kombination drücken (z. B. Strg + Shift + Alt + A, bis zu 4 Tasten).
+    Esc bricht ab. Rechtsklick: Maus-/Medientasten oder von Hand eingeben."""
     captured = Signal(list, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("KeyBtn")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedWidth(150)
-        self.key = ""
+        self.setFixedWidth(260)
+        self.mods, self.key = [], ""
         self.listening = False
         self.clicked.connect(self.start)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._menu)
 
-    def set_key(self, key: str):
-        self.key = key
+    def set_combo(self, mods: list, key: str):
+        self.mods, self.key = list(mods), key
         self.listening = False
-        self.setText(QtGui.QFontMetrics(self.font()).elidedText(key or t("keys.none"),
-                                                                 Qt.TextElideMode.ElideMiddle, 132))
-        self.setToolTip(t("tip.keybtn") + (f"\n{key}" if key else ""))
+        txt = combo_label(mods, key) if key else t("keys.none")
+        self.setText(QtGui.QFontMetrics(self.font()).elidedText(txt, Qt.TextElideMode.ElideMiddle, 240))
+        self.setToolTip(t("tip.keybtn") + (f"\n{model.combo_text({'mods': mods, 'key': key})}" if key else ""))
 
     def start(self):
         self.listening = True
+        self._warn = False
         self.setText(t("keys.press"))
         self.setFocus()
         self.grabKeyboard()
@@ -78,7 +106,13 @@ class KeyButton(QtWidgets.QPushButton):
     def _stop(self):
         if self.listening:
             self.releaseKeyboard()
-        self.set_key(self.key)
+        self.set_combo(self.mods, self.key)
+
+    def _live(self, m):
+        if getattr(self, "_warn", False):
+            return
+        mods = mods_of(m)
+        self.setText(combo_label(mods, "") + " + …" if mods else t("keys.press"))
 
     def _menu(self, pos):
         m = QtWidgets.QMenu(self)
@@ -90,33 +124,43 @@ class KeyButton(QtWidgets.QPushButton):
         if a is None:
             return
         if a is manual:
-            txt, ok = QtWidgets.QInputDialog.getText(self, t("keys.manual"), t("keys.manual_q"), text=self.key)
-            if ok and txt.strip():
-                self.set_key(txt.strip())
-                self.captured.emit([], self.key)
-        elif a.data():
-            self.set_key(a.data())
-            self.captured.emit([], self.key)
+            txt, ok = QtWidgets.QInputDialog.getText(self, t("keys.manual"), t("keys.manual_q"),
+                                                     text=model.combo_text({"mods": self.mods, "key": self.key}))
+            mods, key = parse_combo(txt) if ok else ([], "")
+            if key:
+                self.set_combo(mods, key)
+                self.captured.emit(mods, key)
+        elif a.data():  # Sondertaste: gedrückte Zusatztasten bleiben
+            self.set_combo(self.mods, a.data())
+            self.captured.emit(self.mods, self.key)
 
     def keyPressEvent(self, e):
         if not self.listening:
             return super().keyPressEvent(e)
         if _v(e.key()) in {_v(k) for k in MOD_KEYS}:
+            self._live(e.modifiers())
             return
-        if _v(e.key()) == _v(K.Key_Escape):
+        if _v(e.key()) == _v(K.Key_Escape) and not e.modifiers():
             self._stop()
             return
         name = key_name(e)
         if not name:
             return
-        m = e.modifiers()
-        mods = [mod for mod, flag in (("SUPER", Qt.KeyboardModifier.MetaModifier),
-                                      ("SHIFT", Qt.KeyboardModifier.ShiftModifier),
-                                      ("CTRL", Qt.KeyboardModifier.ControlModifier),
-                                      ("ALT", Qt.KeyboardModifier.AltModifier)) if m & flag]
+        self._warn = False
+        mods = mods_of(e.modifiers())
+        if len(mods) + 1 > MAX_KEYS:
+            self.setText(t("keys.max4"))
+            self._warn = True
+            return
         self.releaseKeyboard()
-        self.set_key(name)
+        self.set_combo(mods, name)
         self.captured.emit(mods, name)
+
+    def keyReleaseEvent(self, e):
+        if self.listening and _v(e.key()) in {_v(k) for k in MOD_KEYS}:
+            self._live(e.modifiers())
+            return
+        super().keyReleaseEvent(e)
 
     def focusOutEvent(self, e):
         self._stop()
@@ -134,20 +178,9 @@ class BindRow(QtWidgets.QFrame):
         lay = QtWidgets.QHBoxLayout(self)
         lay.setContentsMargins(10, 8, 8, 8)
         lay.setSpacing(6)
-        self.mods = {}
-        for m in model.MODS:
-            btn = QtWidgets.QPushButton(t("mod." + m))
-            btn.setObjectName("Mod")
-            btn.setCheckable(True)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setChecked(m in b["mods"])
-            btn.toggled.connect(lambda _=False: self.changed.emit())
-            btn.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
-            self.mods[m] = btn
-            lay.addWidget(btn)
         self.keybtn = KeyButton()
-        self.keybtn.set_key(b["key"])
-        self.keybtn.captured.connect(self._captured)
+        self.keybtn.set_combo(b["mods"], b["key"])
+        self.keybtn.captured.connect(lambda *_: self.changed.emit())
         lay.addWidget(self.keybtn)
         lay.addSpacing(6)
         self.action = QtWidgets.QComboBox()
@@ -201,14 +234,6 @@ class BindRow(QtWidgets.QFrame):
         self.more.setToolTip(t("keys.flags") + (": " + ", ".join(t("flag." + f) for f in on) if on else ""))
         self.changed.emit()
 
-    def _captured(self, mods, _key):
-        if mods:
-            for m, btn in self.mods.items():
-                btn.blockSignals(True)
-                btn.setChecked(m in mods)
-                btn.blockSignals(False)
-        self.changed.emit()
-
     def _fill_arg(self, value: str):
         a = self.action.currentData()
         kind = model.ACTIONS[a]
@@ -241,7 +266,7 @@ class BindRow(QtWidgets.QFrame):
             arg = self.arg.currentText().strip()
         else:
             arg = ""
-        return {"mods": [m for m, b in self.mods.items() if b.isChecked()], "key": self.keybtn.key,
+        return {"mods": list(self.keybtn.mods), "key": self.keybtn.key,
                 "action": a, "arg": arg, "flags": [f for f, x in self.flag_acts.items() if x.isChecked()]}
 
     def text(self) -> str:
@@ -332,7 +357,7 @@ class BindEditor(QtWidgets.QWidget):
 
     def add_empty(self):
         self.search.clear()
-        r = self._add_row({"mods": ["SUPER"], "key": "", "action": "exec", "arg": "", "flags": []})
+        r = self._add_row({"mods": [], "key": "", "action": "exec", "arg": "", "flags": []})
         r.keybtn.start()
         self.changed.emit()
 

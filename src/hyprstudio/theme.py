@@ -94,6 +94,8 @@ def qss(accent: str) -> str:
     #Mono {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-weight: 600; color: {accent}; }}
     #Code {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-size: 9pt; color: {MUTED};
              background: {BG}; border-radius: 6px; padding: 4px 8px; }}
+    QProgressBar {{ background: {SURFACE2}; border: none; border-radius: 3px; max-height: 6px; }}
+    QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
     #Status {{ color: {MUTED}; }}
     QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 12px; padding: 8px;
                       font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 9pt;

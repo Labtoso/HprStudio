@@ -97,6 +97,13 @@ class MainWindow(QtWidgets.QWidget):
         self.btn_log.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_log.toggled.connect(self.logview_toggle)
         foot.addWidget(self.status, 1)
+        self.busy_bar = QtWidgets.QProgressBar()
+        self.busy_bar.setRange(0, 0)
+        self.busy_bar.setTextVisible(False)
+        self.busy_bar.setFixedWidth(200)
+        self.busy_bar.hide()
+        foot.addWidget(self.busy_bar)
+        foot.addSpacing(12)
         foot.addWidget(self.btn_log)
         cl.addLayout(foot)
         self.logview = QtWidgets.QPlainTextEdit()
@@ -162,6 +169,10 @@ class MainWindow(QtWidgets.QWidget):
         for pg in self.all_pages():
             pg.preview.set_states(hs, ws)
             pg._presets_dirty = True
+
+    def bar_busy(self, on: bool):
+        """Fortschrittsbalken ohne Prozent (läuft hin und her) für Installationen."""
+        self.busy_bar.setVisible(on)
 
     def set_status(self, text: str):
         self.status.setText(text)

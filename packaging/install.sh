@@ -1,8 +1,20 @@
 #!/bin/sh
-# Install Hypr Studio system-wide (Arch: as a pacman package, otherwise to /usr)
+# Install Hypr Studio system-wide (Arch: as a pacman package, otherwise to /usr).
+# Installs only Hypr Studio itself (+ PySide6 if missing) – Rofi, Wofi, Fuzzel, Waybar etc.
+# can be installed from inside the app under More › Install.
 set -e
-HERE="$(cd "$(dirname "$0")" && pwd)"
-TARBALL="$(ls "$HERE"/labtoso-hyprstudio-*.tar.gz | sort -V | tail -n1)"
+
+# Copy everything to a local temp folder first and work there: if the installer lies in a
+# cloud/FUSE folder (e.g. pCloud), root cannot read it → pacman would otherwise report
+# "could not get current working directory".
+if [ -z "$HS_WORK" ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  HS_WORK="$(mktemp -d /tmp/hyprstudio-install.XXXXXX)"
+  cp "$HERE/PKGBUILD" "$HERE/install.sh" "$HS_WORK/"
+  cp "$(ls "$HERE"/labtoso-hyprstudio-*.tar.gz | sort -V | tail -n1)" "$HS_WORK/"
+fi
+cd "$HS_WORK"
+TARBALL="$(ls "$HS_WORK"/labtoso-hyprstudio-*.tar.gz | sort -V | tail -n1)"
 
 need_qt() {
   python3 -c "import PySide6" 2>/dev/null || python3 -c "import PyQt6" 2>/dev/null
@@ -10,16 +22,14 @@ need_qt() {
 
 if command -v pacman >/dev/null 2>&1 && command -v makepkg >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
   echo "==> Arch detected: building pacman package"
-  BUILD="$(mktemp -d)"
-  cp "$HERE/PKGBUILD" "$TARBALL" "$BUILD/"
-  (cd "$BUILD" && makepkg -sf --noconfirm)
-  sudo pacman -U --noconfirm "$BUILD"/labtoso-hyprstudio-*.pkg.tar.zst
+  makepkg -sf --noconfirm
+  sudo pacman -U --noconfirm "$HS_WORK"/labtoso-hyprstudio-*.pkg.tar.zst
   echo "==> Done: Hypr Studio is in your app menu"
   exit 0
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
-  exec sudo sh "$0" "$@"
+  exec sudo env HS_WORK="$HS_WORK" sh "$HS_WORK/install.sh" "$@"
 fi
 
 echo "==> Installing to /usr"
@@ -30,9 +40,8 @@ if ! need_qt; then
   elif command -v pacman >/dev/null; then pacman -S --needed --noconfirm pyside6
   fi
 fi
-TMP="$(mktemp -d)"
-tar -xzf "$TARBALL" -C "$TMP"
-SRC="$(ls -d "$TMP"/labtoso-hyprstudio-*)"
+tar -xzf "$TARBALL" -C "$HS_WORK"
+SRC="$(ls -d "$HS_WORK"/labtoso-hyprstudio-*/ | head -n1)"
 install -d /usr/lib/labtoso-hyprstudio
 cp -r "$SRC/src/hyprstudio" /usr/lib/labtoso-hyprstudio/
 install -Dm755 "$SRC/packaging/hypr-studio" /usr/bin/hypr-studio

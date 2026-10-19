@@ -3,7 +3,9 @@
 import time
 from pathlib import Path
 
-from . import fixer, model, theme
+import shutil
+
+from . import fixer, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .widgets import set_chip
@@ -55,7 +57,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "tools", "backups")
+    SECTIONS = ("fix", "install", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -153,7 +155,49 @@ class OtherPage(QtWidgets.QWidget):
         bl.addLayout(self.bak_lay)
         bl.addStretch()
 
-        self.pages = {"fix": self.p_fix, "tools": self.p_tools, "backups": self.p_bak}
+        # --- Installieren ---
+        self.p_inst, il = self._page()
+        itop = QtWidgets.QHBoxLayout()
+        self.btn_inst = QtWidgets.QPushButton()
+        self.btn_inst.setObjectName("Primary")
+        self.btn_inst.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_inst.clicked.connect(self.install_selected)
+        self.pm_label = QtWidgets.QLabel()
+        self.pm_label.setObjectName("RowLabel")
+        itop.addWidget(self.btn_inst)
+        itop.addSpacing(10)
+        itop.addWidget(self.pm_label)
+        itop.addStretch()
+        il.addLayout(itop)
+        self.pkg_rows = {}
+        for g in packages.GROUPS:
+            head = QtWidgets.QLabel()
+            head.setObjectName("CardTitle")
+            head.setProperty("tkey", "pkgg." + g)
+            il.addWidget(head)
+            self.pkg_rows["_" + g] = head
+            for key, (grp, _, _) in packages.PACKAGES.items():
+                if grp != g:
+                    continue
+                row = QtWidgets.QFrame()
+                row.setObjectName("BindRow")
+                rl = QtWidgets.QHBoxLayout(row)
+                rl.setContentsMargins(14, 8, 12, 8)
+                cb = QtWidgets.QCheckBox()
+                cb.setCursor(Qt.CursorShape.PointingHandCursor)
+                cb.toggled.connect(self._inst_count)
+                desc = QtWidgets.QLabel()
+                desc.setObjectName("RowLabel")
+                chip = QtWidgets.QLabel()
+                rl.addWidget(cb)
+                rl.addWidget(desc, 1)
+                rl.addWidget(chip)
+                il.addWidget(row)
+                self.pkg_rows[key] = (cb, desc, chip)
+        il.addStretch()
+        self.proc = None
+
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
     def _page(self):
@@ -180,6 +224,8 @@ class OtherPage(QtWidgets.QWidget):
         self.chip.setVisible(key == "fix")
         if key == "backups":
             self.load_backups()
+        elif key == "install":
+            self.refresh_packages()
         elif key == "fix" and hasattr(self, "chip") and self.isVisible():
             self.scan(quiet=True)
 
@@ -230,6 +276,79 @@ class OtherPage(QtWidgets.QWidget):
         self.win.log("")
         model.run(["hyprctl", "reload"], self.win.log)
         QtCore.QTimer.singleShot(700, self.scan)
+
+    # ----- Installieren -----
+    def refresh_packages(self):
+        pm = packages.manager()
+        self.pm_label.setText(t("pkg.pm", pm=pm) if pm else t("pkg.nopm"))
+        for key in packages.PACKAGES:
+            cb, desc, chip = self.pkg_rows[key]
+            inst = packages.installed(key)
+            avail = packages.available(key, pm)
+            cb.setText(t("pkg." + key))
+            desc.setText(t("pkgd." + key) + "  ·  " + " ".join(packages.PACKAGES[key][2].get(pm or "pacman", [])))
+            cb.setEnabled(avail and not inst and self.proc is None)
+            if inst or not avail:
+                cb.setChecked(False)
+            set_chip(chip, inst, t("pkg.installed") if inst else t("pkg.missing") if avail else t("pkg.unavailable"))
+        self._inst_count()
+
+    def _inst_count(self, *_):
+        n = len(self._selected())
+        self.btn_inst.setText(t("pkg.install", n=n) if n else t("pkg.install0"))
+        self.btn_inst.setEnabled(n > 0 and self.proc is None)
+
+    def _selected(self) -> list:
+        return [k for k in packages.PACKAGES if self.pkg_rows[k][0].isChecked()]
+
+    def install_selected(self):
+        keys, pm = self._selected(), packages.manager()
+        cmd = packages.command(keys, pm) if pm else []
+        if not cmd:
+            return
+        self.win.log("")
+        if model.DRY:
+            self.win.log("$ pkexec " + " ".join(cmd) + "  (Testmodus)")
+            self.win.set_status(t("pkg.done"))
+            return
+        if not shutil.which("pkexec"):
+            self._terminal(cmd)
+            return
+        self.proc = QtCore.QProcess(self)
+        self.proc.setWorkingDirectory("/tmp")  # nie aus einem Cloud-Ordner als root starten
+        self.proc.setProcessChannelMode(QtCore.QProcess.ProcessChannelMode.MergedChannels)
+        self.proc.readyReadStandardOutput.connect(
+            lambda: [self.win.log(x) for x in bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace")
+                     .splitlines() if x.strip()])
+        self.proc.finished.connect(lambda code, _s=None: self._installed(code, cmd))
+        self.win.log("$ pkexec " + " ".join(cmd))
+        self.win.set_status(t("pkg.busy"))
+        self.win.bar_busy(True)
+        self.proc.start("pkexec", cmd)
+        self.refresh_packages()
+
+    def _installed(self, code: int, cmd: list):
+        self.proc.deleteLater()
+        self.proc = None
+        self.win.bar_busy(False)
+        if code in (126, 127):  # abgebrochen oder kein Polkit-Agent → im Terminal mit sudo
+            self.win.log(t("pkg.fallback"))
+            self._terminal(cmd)
+        else:
+            self.win.set_status(t("pkg.done") if code == 0 else t("pkg.failed"))
+        self.refresh_packages()
+
+    def _terminal(self, cmd: list):
+        line = "cd /tmp && sudo " + " ".join(cmd) + "; echo; read -r -p 'Enter = schließen' _"
+        for term, args in (("kitty", ["sh", "-c", line]), ("foot", ["sh", "-c", line]),
+                           ("alacritty", ["-e", "sh", "-c", line]), ("wezterm", ["start", "--", "sh", "-c", line]),
+                           ("konsole", ["-e", "sh", "-c", line]), ("gnome-terminal", ["--", "sh", "-c", line]),
+                           ("xterm", ["-e", "sh", "-c", line])):
+            if shutil.which(term):
+                QtCore.QProcess.startDetached(term, args, "/tmp")
+                self.win.set_status(t("pkg.terminal", term=term))
+                return
+        self.win.set_status(t("pkg.noterm"))
 
     # ----- Werkzeuge -----
     def open_dir(self, name: str):
@@ -293,5 +412,8 @@ class OtherPage(QtWidgets.QWidget):
         for k, b in self.tool_btns.items():
             b.setText(t("tool." + k))
         self.btn_bak_refresh.setText(t("bak.refresh"))
+        for g in packages.GROUPS:
+            self.pkg_rows["_" + g].setText(t("pkgg." + g))
+        self.refresh_packages()
         if self.chip.text():
             self.scan(quiet=True)
