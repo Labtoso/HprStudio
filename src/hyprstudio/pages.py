@@ -4,9 +4,10 @@ from . import model, theme
 from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
+from .keys import BindEditor
 from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, draw_icon
 
-KEEP_INPUT = ("kb_layout", "sensitivity", "follow_mouse", "natural_scroll", "no_logo")
+KEEP_INPUT = ("kb_layout", "sensitivity", "follow_mouse", "natural_scroll", "no_logo", "binds")
 
 
 class EditorPage(QtWidgets.QWidget):
@@ -200,7 +201,7 @@ class EditorPage(QtWidgets.QWidget):
 
 
 class HyprPage(EditorPage):
-    SECTIONS = ("presets", "windows", "colors", "effects", "anim", "input")
+    SECTIONS = ("presets", "windows", "colors", "effects", "anim", "input", "keys")
     KIND = "hypr"
 
     def load_state(self):
@@ -258,6 +259,42 @@ class HyprPage(EditorPage):
             c.toggle("natural_scroll")
             c = self.card(lay, "card.misc")
             c.toggle("no_logo")
+        elif key == "keys":
+            c = self.card(lay, "card.keys")
+            self.binds = BindEditor()
+            self.binds.changed.connect(self._binds_changed)
+            self.binds.fix_requested.connect(self._fix_conflicts)
+            c.layout().addWidget(self.binds)
+            c.rows.append((QtWidgets.QLabel(), lambda s: (self.binds.load(s["binds"]), self._mark())))
+
+    def _binds_changed(self):
+        self.state["binds"] = self.binds.read()
+        self._mark()
+        self.changed()
+
+    def _conflicts(self) -> set:
+        main = self.hdir() / "hyprland.lua"
+        if not main.is_file():
+            return set()
+        text = main.read_text(encoding="utf-8", errors="replace")
+        mine = {model.combo(b["mods"], b["key"]) for b in self.state["binds"] if model.bind_ok(b)}
+        return {c for _, c in model.lua_bind_combos(text) if c in mine}
+
+    def _mark(self):
+        if hasattr(self, "binds"):
+            self.binds.mark(self._conflicts())
+
+    def _fix_conflicts(self):
+        self.win.log("")
+        n = model.comment_conflicts(self.hdir(), self.state["binds"], self.win.log)
+        self.win.set_status(t("keys.fixed", n=n))
+        self._mark()
+
+    def retranslate(self):
+        super().retranslate()
+        if hasattr(self, "binds"):
+            self.binds.retranslate()
+            self._mark()
 
     def set(self, key, value):
         super().set(key, value)
@@ -280,6 +317,7 @@ class HyprPage(EditorPage):
         ok, info = model.apply_hypr(self.state, self.hdir(), self.win.log)
         self.win.report(ok, info)
         self.update_info()
+        self._mark()
 
     def undo(self):
         self.win.log("")

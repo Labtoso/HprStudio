@@ -56,6 +56,7 @@ HYPR_DEFAULT = {
     "shadow": True, "shadow_range": 4, "shadow_power": 3, "shadow_color": "#1a1a1aee",
     "anim": True, "anim_curve": "smooth", "anim_tempo": 1.0, "win_style": "popin", "ws_style": "slide",
     "kb_layout": "de", "sensitivity": 0.0, "follow_mouse": 1, "natural_scroll": False, "no_logo": True,
+    "binds": [],  # leer = Hypr Studio schreibt keine Tastenkürzel
 }
 
 HYPR_PRESETS = {
@@ -96,10 +97,13 @@ WS_STYLES = {"slide": "slide", "slidevert": "slidevert", "fade": "fade", "slidef
 
 def hypr_state(saved: dict | None) -> dict:
     s = dict(HYPR_DEFAULT)
+    s["binds"] = []
     for k, v in (saved or {}).items():
         if k not in s:
             continue
-        if type(v) is type(s[k]):
+        if k == "binds":
+            s[k] = clean_binds(v)
+        elif type(v) is type(s[k]):
             s[k] = v
         elif isinstance(s[k], float) and type(v) is int:
             s[k] = float(v)
@@ -108,8 +112,178 @@ def hypr_state(saved: dict | None) -> dict:
 
 def preset_state(name: str) -> dict:
     s = dict(HYPR_DEFAULT)
+    s["binds"] = []
     s.update(HYPR_PRESETS.get(name, {}))
     return s
+
+
+# ---------- Tastenkürzel ----------
+
+MODS = ("SUPER", "SHIFT", "CTRL", "ALT")
+MOD_ALIAS = {"SUPER": "SUPER", "WIN": "SUPER", "MOD4": "SUPER", "META": "SUPER", "LOGO": "SUPER",
+             "SHIFT": "SHIFT", "CTRL": "CTRL", "CONTROL": "CTRL", "ALT": "ALT", "MOD1": "ALT"}
+# Aktion → braucht Argument?
+ACTIONS = {
+    "exec": True, "close": False, "fullscreen": False, "float": False, "focus": True,
+    "workspace": True, "movetows": True, "special": False, "togglesplit": False,
+}
+DIRECTIONS = ("left", "right", "up", "down")
+EXEC_SUGGEST = ("kitty", "dolphin", "nautilus", "firefox", "rofi -show drun", "wofi --show drun", "hyprlauncher",
+                "hyprlock", 'grim -g "$(slurp)" - | wl-copy', "pavucontrol", "code")
+
+
+def clean_binds(v) -> list:
+    out = []
+    if not isinstance(v, list):
+        return out
+    for b in v:
+        if not isinstance(b, dict):
+            continue
+        mods = [m for m in MODS if m in (b.get("mods") or [])]
+        key = str(b.get("key") or "").strip()
+        act = b.get("action")
+        if act not in ACTIONS:
+            continue
+        out.append({"mods": mods, "key": key, "action": act, "arg": str(b.get("arg") or "").strip()})
+    return out
+
+
+def default_binds() -> list:
+    b = [
+        (["SUPER"], "Q", "exec", "kitty"), (["SUPER"], "C", "close", ""), (["SUPER"], "E", "exec", "dolphin"),
+        (["SUPER"], "R", "exec", "rofi -show drun"), (["SUPER"], "V", "float", ""), (["SUPER"], "F", "fullscreen", ""),
+        (["SUPER"], "J", "togglesplit", ""), (["SUPER"], "L", "exec", "hyprlock"),
+        ([], "Print", "exec", 'grim -g "$(slurp)" - | wl-copy'), (["SUPER"], "S", "special", ""),
+    ]
+    b += [(["SUPER"], d, "focus", d) for d in DIRECTIONS]
+    b += [(["SUPER"], str(i), "workspace", str(i)) for i in range(1, 6)]
+    b += [(["SUPER", "SHIFT"], str(i), "movetows", str(i)) for i in range(1, 6)]
+    return [{"mods": m, "key": k, "action": a, "arg": g} for m, k, a, g in b]
+
+
+def combo(mods, key: str) -> tuple:
+    return tuple(sorted({MOD_ALIAS.get(m.upper(), m.upper()) for m in mods})), key.strip().lower()
+
+
+def combo_text(b: dict) -> str:
+    return " + ".join([*b["mods"], b["key"]])
+
+
+def bind_ok(b: dict) -> bool:
+    if not b["key"]:
+        return False
+    if ACTIONS[b["action"]] and not b["arg"]:
+        return False
+    if b["action"] == "focus" and b["arg"] not in DIRECTIONS:
+        return False
+    return True
+
+
+def _ws(arg: str) -> str:
+    return arg if arg.lstrip("-").isdigit() else _lua_str(arg)
+
+
+def bind_lua(b: dict) -> str:
+    a, g = b["action"], b["arg"]
+    dsp = {
+        "exec": lambda: f"hl.dsp.exec_cmd({_lua_str(g)})",
+        "close": lambda: "hl.dsp.window.close()",
+        "fullscreen": lambda: 'hl.dsp.window.fullscreen({ action = "toggle" })',
+        "float": lambda: 'hl.dsp.window.float({ action = "toggle" })',
+        "focus": lambda: f'hl.dsp.focus({{ direction = "{g}" }})',
+        "workspace": lambda: f"hl.dsp.focus({{ workspace = {_ws(g)} }})",
+        "movetows": lambda: f"hl.dsp.window.move({{ workspace = {_ws(g)} }})",
+        "special": lambda: 'hl.dsp.workspace.toggle_special("magic")',
+        "togglesplit": lambda: 'hl.dsp.layout("togglesplit")',
+    }[a]()
+    return f"hl.bind({_lua_str(combo_text(b))}, {dsp})"
+
+
+def bind_conf(b: dict) -> list:
+    a, g = b["action"], b["arg"]
+    d = {"exec": f"exec, {g}", "close": "killactive,", "fullscreen": "fullscreen, 0", "float": "togglefloating,",
+         "focus": f"movefocus, {g[:1]}", "workspace": f"workspace, {g}", "movetows": f"movetoworkspace, {g}",
+         "special": "togglespecialworkspace, magic", "togglesplit": "togglesplit,"}[a]
+    mods = " ".join(b["mods"])
+    # unbind entfernt vorher gesetzte Kürzel mit derselben Taste (aus hyprland.conf)
+    return [f"unbind = {mods}, {b['key']}", f"bind = {mods}, {b['key']}, {d}"]
+
+
+def _split_args(s: str) -> str:
+    """Erstes Argument eines Lua-Aufrufs (bis zum ersten Komma auf oberster Ebene)."""
+    depth, q, out = 0, None, []
+    for ch in s:
+        if q:
+            out.append(ch)
+            if ch == q:
+                q = None
+            continue
+        if ch in "\"'":
+            q = ch
+        elif ch in "({[":
+            depth += 1
+        elif ch in ")}]":
+            if depth == 0:
+                break
+            depth -= 1
+        elif ch == "," and depth == 0:
+            break
+        out.append(ch)
+    return "".join(out)
+
+
+def lua_bind_combos(text: str) -> list:
+    """[(zeilenindex, combo)] aller einfach lesbaren hl.bind-Zeilen (Variablen wie mainMod werden aufgelöst)."""
+    import re
+    local = dict(re.findall(r'^\s*local\s+(\w+)\s*=\s*"([^"]*)"', text, re.M))
+    out = []
+    for i, ln in enumerate(text.splitlines()):
+        s = ln.strip()
+        if s.startswith("--"):
+            continue
+        m = re.match(r'(?:local\s+\w+\s*=\s*)?hl\.bind\((.*)$', s)
+        if not m:
+            continue
+        val = ""
+        for part in _split_args(m.group(1)).split(".."):
+            part = part.strip()
+            if len(part) >= 2 and part[0] == part[-1] and part[0] in "\"'":
+                val += part[1:-1]
+            elif part in local:
+                val += local[part]
+            else:
+                val = None
+                break
+        if val is None:
+            continue
+        keys = [x.strip() for x in val.split("+") if x.strip()]
+        if keys:
+            out.append((i, combo(keys[:-1], keys[-1])))
+    return out
+
+
+def lua_conflicts(main_text: str, binds: list) -> list:
+    mine = {combo(b["mods"], b["key"]) for b in binds if bind_ok(b)}
+    return [i for i, c in lua_bind_combos(main_text) if c in mine]
+
+
+def comment_conflicts(hdir: Path, binds: list, log) -> int:
+    main = hdir / "hyprland.lua"
+    if not main.is_file():
+        return 0
+    text = main.read_text(encoding="utf-8", errors="replace")
+    idx = set(lua_conflicts(text, binds))
+    if not idx:
+        return 0
+    bak = main.with_name(f"hyprland.lua.hyprstudio-{time.strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(main, bak)
+    log(f"Sicherung: {bak}")
+    lines = text.splitlines(keepends=True)
+    for i in idx:
+        lines[i] = "-- [Hypr Studio] " + lines[i]
+        log(f"  auskommentiert: {lines[i].strip()}")
+    main.write_text("".join(lines), encoding="utf-8")
+    return len(idx)
 
 
 def anim_list(s: dict) -> list:
@@ -200,6 +374,9 @@ def hypr_lua(s: dict) -> str:
             st = f", style = {_lua_str(style)}" if style else ""
             lines.append(f'hl.animation({{ leaf = "{leaf}", enabled = true, speed = {b(float(speed))}, '
                          f'bezier = "hs_curve"{st} }})')
+    binds = [x for x in s["binds"] if bind_ok(x)]
+    if binds:
+        lines += ["", "-- Tastenkürzel"] + [bind_lua(x) for x in binds]
     return "\n".join(lines) + "\n"
 
 
@@ -262,6 +439,9 @@ def hypr_conf(s: dict) -> str:
         f"    disable_splash_rendering = {b(s['no_logo'])}",
         "}",
     ]
+    binds = [x for x in s["binds"] if bind_ok(x)]
+    if binds:
+        out += ["", "# Tastenkürzel"] + [ln for x in binds for ln in bind_conf(x)]
     return "\n".join(out) + "\n"
 
 

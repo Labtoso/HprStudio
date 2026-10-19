@@ -70,6 +70,13 @@ def qss(accent: str) -> str:
     QScrollBar:horizontal {{ height: 8px; background: transparent; }}
     QScrollBar::handle:horizontal {{ background: {BORDER}; border-radius: 4px; min-width: 30px; }}
     QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {{ width: 0; height: 0; background: none; }}
+    #BindRow {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 12px; }}
+    #BindRow QComboBox {{ background: {BG}; }}
+    QPushButton#Mod {{ background: transparent; padding: 4px 9px; border-radius: 8px; color: {MUTED}; font-size: 9pt; }}
+    QPushButton#Mod:checked {{ border-color: {accent}; color: {accent}; font-weight: 600; }}
+    QPushButton#KeyBtn {{ background: {BG}; font-family: "JetBrains Mono", "Hack", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+                          font-weight: 600; }}
+    #Warn {{ background: transparent; border: 1px solid {DANGER}; border-radius: 11px; color: {DANGER}; font-weight: 700; }}
     #Status {{ color: {MUTED}; }}
     QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 12px; padding: 8px;
                       font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 9pt;

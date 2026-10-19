@@ -2,7 +2,7 @@
 # Install Hypr Studio system-wide (Arch: as a pacman package, otherwise to /usr)
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-TARBALL="$(ls "$HERE"/labtoso-hyprstudio-*.tar.gz | head -n1)"
+TARBALL="$(ls "$HERE"/labtoso-hyprstudio-*.tar.gz | sort -V | tail -n1)"
 
 need_qt() {
   python3 -c "import PySide6" 2>/dev/null || python3 -c "import PyQt6" 2>/dev/null
