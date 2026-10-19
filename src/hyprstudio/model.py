@@ -76,6 +76,7 @@ HYPR_DEFAULT = {
     "swallow_regex": "^(kitty|foot|Alacritty)$", "mmb_paste": True, "dpms_mouse": True, "dpms_key": True,
     "monitor_on": False, "monitor_mode": "preferred", "monitor_scale": "auto",
     "autostart": [], "autostart_waybar": False,
+    "skip_opts": [],  # vom Fehler-Fixer abgeschaltete Optionen, z. B. "decoration.blur.xray"
     "binds": [],  # leer = Hypr Studio schreibt keine Tastenkürzel
 }
 LOOK_KEYS = tuple(list(HYPR_DEFAULT)[:list(HYPR_DEFAULT).index("layout")])
@@ -118,13 +119,13 @@ WS_STYLES = {"slide": "slide", "slidevert": "slidevert", "fade": "fade", "slidef
 
 def hypr_state(saved: dict | None) -> dict:
     s = dict(HYPR_DEFAULT)
-    s["binds"], s["autostart"] = [], []
+    s["binds"], s["autostart"], s["skip_opts"] = [], [], []
     for k, v in (saved or {}).items():
         if k not in s:
             continue
         if k == "binds":
             s[k] = clean_binds(v)
-        elif k == "autostart":
+        elif k in ("autostart", "skip_opts"):
             s[k] = [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
         elif type(v) is type(s[k]):
             s[k] = v
@@ -620,7 +621,22 @@ def _conf_block(name: str, d: dict, ind: int = 0) -> list:
     return out
 
 
+def _drop(d: dict, parts: list) -> None:
+    if not parts:
+        return
+    d.pop(".".join(parts), None)  # hyprlang: col.active_border steht als ein Schlüssel
+    if len(parts) > 1 and isinstance(d.get(parts[0]), dict):
+        _drop(d[parts[0]], parts[1:])
+
+
 def _sections(s: dict, lua: bool) -> dict:
+    sec = _sections_all(s, lua)
+    for path in s["skip_opts"]:
+        _drop(sec, path.split("."))
+    return sec
+
+
+def _sections_all(s: dict, lua: bool) -> dict:
     """Gemeinsamer Inhalt für Lua und hyprlang: {kategorie: {option: wert}}."""
     f = float
     if s["gradient"]:

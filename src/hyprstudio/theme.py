@@ -81,6 +81,9 @@ def qss(accent: str) -> str:
                color: {OK}; font-size: 9pt; font-weight: 600; }}
     #ChipWarn {{ background: transparent; border: 1px solid #d29922; border-radius: 9px; padding: 2px 9px;
                  color: #d29922; font-size: 9pt; font-weight: 600; }}
+    #Mono {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-weight: 600; color: {accent}; }}
+    #Code {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-size: 9pt; color: {MUTED};
+             background: {BG}; border-radius: 6px; padding: 4px 8px; }}
     #Status {{ color: {MUTED}; }}
     QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 12px; padding: 8px;
                       font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 9pt;

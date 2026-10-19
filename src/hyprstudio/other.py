@@ -1,0 +1,297 @@
+"""Tab „Sonstiges“: Config-Fehler reparieren, Werkzeuge, Sicherungen wiederherstellen."""
+
+import time
+from pathlib import Path
+
+from . import fixer, model, theme
+from .i18n import t
+from .qt import QtCore, QtGui, QtWidgets, Qt
+from .widgets import set_chip
+
+
+def _clear(lay: QtWidgets.QLayout):
+    while lay.count():
+        it = lay.takeAt(0)
+        w = it.widget()
+        if w:
+            w.hide()
+            w.setParent(None)
+            w.deleteLater()
+
+
+class ErrorRow(QtWidgets.QFrame):
+    def __init__(self, e: dict, page, parent=None):
+        super().__init__(parent)
+        self.setObjectName("BindRow")
+        self.e = e
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(14, 10, 10, 10)
+        lay.setSpacing(12)
+        col = QtWidgets.QVBoxLayout()
+        col.setSpacing(4)
+        where = QtWidgets.QLabel(f"{Path(e['file']).name}:{e['line']}" if e["file"] else t("fix.nofile"))
+        where.setObjectName("Mono")
+        where.setToolTip(e["file"])
+        msg = QtWidgets.QLabel(e["msg"])
+        msg.setWordWrap(True)
+        col.addWidget(where)
+        col.addWidget(msg)
+        src = fixer.line_text(e) if e["file"] else ""
+        if src:
+            code = QtWidgets.QLabel(src)
+            code.setObjectName("Code")
+            code.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            col.addWidget(code)
+        lay.addLayout(col, 1)
+        p = fixer.plan(e)
+        self.btn = QtWidgets.QPushButton(t("fix.one"))
+        self.btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn.setEnabled(p["kind"] != "none")
+        tip = {"skip": t("fix.tip.skip", opt=p.get("option", "")), "state": t("fix.tip.state"),
+               "bind": t("fix.tip.bind"), "comment": t("fix.tip.comment"), "none": t("fix.tip.none")}[p["kind"]]
+        self.btn.setToolTip(tip)
+        self.btn.clicked.connect(lambda: page.fix([self.e]))
+        lay.addWidget(self.btn, 0, Qt.AlignmentFlag.AlignTop)
+
+
+class OtherPage(QtWidgets.QWidget):
+    SECTIONS = ("fix", "tools", "backups")
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.errors = []
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(14)
+        side = QtWidgets.QFrame()
+        side.setObjectName("Side")
+        side.setFixedWidth(190)
+        sl = QtWidgets.QVBoxLayout(side)
+        sl.setContentsMargins(10, 12, 10, 12)
+        sl.setSpacing(4)
+        self.nav = {}
+        grp = QtWidgets.QButtonGroup(self)
+        for key in self.SECTIONS:
+            b = QtWidgets.QPushButton()
+            b.setObjectName("Nav")
+            b.setCheckable(True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(lambda _=False, k=key: self.show_section(k))
+            grp.addButton(b)
+            sl.addWidget(b)
+            self.nav[key] = b
+        sl.addStretch()
+        lay.addWidget(side)
+
+        right = QtWidgets.QVBoxLayout()
+        right.setSpacing(14)
+        head = QtWidgets.QHBoxLayout()
+        self.title = QtWidgets.QLabel()
+        self.title.setObjectName("PageTitle")
+        self.chip = QtWidgets.QLabel()
+        head.addWidget(self.title)
+        head.addSpacing(10)
+        head.addWidget(self.chip)
+        head.addStretch()
+        right.addLayout(head)
+        self.stack = QtWidgets.QStackedWidget()
+        right.addWidget(self.stack, 1)
+        lay.addLayout(right, 1)
+
+        # --- Reparatur ---
+        self.p_fix, fl = self._page()
+        top = QtWidgets.QHBoxLayout()
+        self.btn_scan = QtWidgets.QPushButton()
+        self.btn_scan.setObjectName("Primary")
+        self.btn_all = QtWidgets.QPushButton()
+        self.btn_reload = QtWidgets.QPushButton()
+        for b in (self.btn_scan, self.btn_all, self.btn_reload):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            top.addWidget(b)
+        top.addStretch()
+        fl.addLayout(top)
+        self.err_lay = QtWidgets.QVBoxLayout()
+        self.err_lay.setSpacing(8)
+        fl.addLayout(self.err_lay)
+        fl.addStretch()
+        self.btn_scan.clicked.connect(self.scan)
+        self.btn_all.clicked.connect(lambda: self.fix(list(self.errors)))
+        self.btn_reload.clicked.connect(self.reload)
+
+        # --- Werkzeuge ---
+        self.p_tools, tl = self._page()
+        self.tool_btns = {}
+        grid = QtWidgets.QGridLayout()
+        grid.setSpacing(10)
+        tools = (("reload", self.reload), ("waybar", lambda: (model.restart_waybar(self.win.log),
+                                                               self.win.set_status(t("done")))),
+                 ("open_hypr", lambda: self.open_dir("hypr")), ("open_waybar", lambda: self.open_dir("waybar")),
+                 ("open_launcher", lambda: self.open_dir(self.win.launcher_page.state["app"])),
+                 ("open_backups", lambda: self.show_section("backups")))
+        for i, (k, fn) in enumerate(tools):
+            b = QtWidgets.QPushButton()
+            b.setMinimumHeight(44)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(fn)
+            grid.addWidget(b, i // 2, i % 2)
+            self.tool_btns[k] = b
+        tl.addLayout(grid)
+        tl.addStretch()
+
+        # --- Sicherungen ---
+        self.p_bak, bl = self._page()
+        btop = QtWidgets.QHBoxLayout()
+        self.btn_bak_refresh = QtWidgets.QPushButton()
+        self.btn_bak_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_bak_refresh.clicked.connect(self.load_backups)
+        btop.addWidget(self.btn_bak_refresh)
+        btop.addStretch()
+        bl.addLayout(btop)
+        self.bak_lay = QtWidgets.QVBoxLayout()
+        self.bak_lay.setSpacing(6)
+        bl.addLayout(self.bak_lay)
+        bl.addStretch()
+
+        self.pages = {"fix": self.p_fix, "tools": self.p_tools, "backups": self.p_bak}
+        self.show_section(win.cfg.get("other_section", "fix"))
+
+    def _page(self):
+        sa = QtWidgets.QScrollArea()
+        sa.setWidgetResizable(True)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QtWidgets.QWidget()
+        inner.setObjectName("ScrollInner")
+        il = QtWidgets.QVBoxLayout(inner)
+        il.setContentsMargins(0, 0, 6, 0)
+        il.setSpacing(12)
+        sa.setWidget(inner)
+        self.stack.addWidget(sa)
+        return sa, il
+
+    def show_section(self, key):
+        if key not in self.SECTIONS:
+            key = "fix"
+        self.nav[key].setChecked(True)
+        self.stack.setCurrentWidget(self.pages[key])
+        self.win.cfg["other_section"] = key
+        self.win.save_later()
+        self.title.setText(t("sec." + key))
+        self.chip.setVisible(key == "fix")
+        if key == "backups":
+            self.load_backups()
+        elif key == "fix" and hasattr(self, "chip") and self.isVisible():
+            self.scan(quiet=True)
+
+    # ----- Reparatur -----
+    def hdir(self) -> Path:
+        return model.config_home() / "hypr"
+
+    def scan(self, quiet: bool = False) -> int:
+        self.errors = fixer.parse(fixer.read_errors(self.hdir(), self.win.log))
+        _clear(self.err_lay)
+        for e in self.errors:
+            self.err_lay.addWidget(ErrorRow(e, self))
+        n = len(self.errors)
+        set_chip(self.chip, not n, t("fix.none") if not n else t("fix.count", n=n))
+        self.btn_all.setEnabled(n > 0)
+        if not quiet:
+            self.win.set_status(t("fix.none") if not n else t("fix.count", n=n))
+        return n
+
+    def fix(self, errors: list):
+        if not errors:
+            return
+        self.win.log("")
+        hp = self.win.hypr_page
+        own, fixed = False, []
+        for e in errors:
+            kind = fixer.plan(e)["kind"]
+            if fixer.apply_fix(e, hp.state, self.win.log):
+                fixed.append(e)
+                own = own or kind in ("skip", "state", "bind")
+        if own:  # eigene Datei neu schreiben (lädt Hyprland auch neu)
+            hp.refresh_controls()
+            hp.changed()
+            hp.apply()
+        else:
+            model.run(["hyprctl", "reload"], self.win.log)
+        if model.DRY:  # Testmodus: behobene Meldungen aus der Testdatei nehmen
+            f = self.hdir().parent / fixer.TESTFILE
+            if f.is_file():
+                gone = {e["raw"] for e in fixed}
+                f.write_text("\n".join(x for x in f.read_text(encoding="utf-8").splitlines() if x not in gone) + "\n",
+                             encoding="utf-8")
+        # Hyprland braucht einen Moment für das Neuladen
+        QtCore.QTimer.singleShot(700, lambda: (self.scan(quiet=True),
+                                               self.win.set_status(t("fix.done", n=len(fixed), left=len(self.errors)))))
+
+    def reload(self):
+        self.win.log("")
+        model.run(["hyprctl", "reload"], self.win.log)
+        QtCore.QTimer.singleShot(700, self.scan)
+
+    # ----- Werkzeuge -----
+    def open_dir(self, name: str):
+        d = model.config_home() / name
+        d.mkdir(parents=True, exist_ok=True)
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(d)))
+
+    # ----- Sicherungen -----
+    def load_backups(self):
+        _clear(self.bak_lay)
+        items = fixer.backups(model.config_home())
+        if not items:
+            lb = QtWidgets.QLabel(t("bak.none"))
+            lb.setObjectName("RowLabel")
+            self.bak_lay.addWidget(lb)
+        for bak, orig in items[:80]:
+            row = QtWidgets.QFrame()
+            row.setObjectName("BindRow")
+            rl = QtWidgets.QHBoxLayout(row)
+            rl.setContentsMargins(14, 8, 10, 8)
+            name = QtWidgets.QLabel(f"{bak.parent.name}/{bak.name}")
+            name.setObjectName("Mono")
+            when = QtWidgets.QLabel(time.strftime("%d.%m.%Y %H:%M", time.localtime(bak.stat().st_mtime)))
+            when.setObjectName("RowLabel")
+            btn = QtWidgets.QPushButton(t("bak.restore"))
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setToolTip(t("bak.tip", target=orig.name))
+            btn.clicked.connect(lambda _=False, b=bak, o=orig: self.restore(b, o))
+            rl.addWidget(name, 1)
+            rl.addWidget(when)
+            rl.addSpacing(10)
+            rl.addWidget(btn)
+            self.bak_lay.addWidget(row)
+
+    def restore(self, bak: Path, orig: Path):
+        box = QtWidgets.QMessageBox(self)
+        box.setWindowTitle(t("bak.restore"))
+        box.setText(t("bak.confirm", src=bak.name, target=orig.name))
+        box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        if box.exec() != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        self.win.log("")
+        fixer.restore(bak, orig, self.win.log)
+        if orig.parent.name == "hypr":
+            model.run(["hyprctl", "reload"], self.win.log)
+        elif orig.parent.name == "waybar":
+            model.restart_waybar(self.win.log)
+        self.win.set_status(t("bak.done", target=orig.name))
+        self.load_backups()
+
+    def apply_theme(self, accent):
+        pass
+
+    def retranslate(self):
+        for k, b in self.nav.items():
+            b.setText(t("sec." + k))
+        self.title.setText(t("sec." + self.win.cfg.get("other_section", "fix")))
+        self.btn_scan.setText(t("fix.scan"))
+        self.btn_all.setText(t("fix.all"))
+        self.btn_reload.setText(t("fix.reload"))
+        for k, b in self.tool_btns.items():
+            b.setText(t("tool." + k))
+        self.btn_bak_refresh.setText(t("bak.refresh"))
+        if self.chip.text():
+            self.scan(quiet=True)

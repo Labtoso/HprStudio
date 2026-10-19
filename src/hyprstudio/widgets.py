@@ -94,6 +94,17 @@ def app_icon() -> QtGui.QIcon:
 
 # ---------- Grundbausteine ----------
 
+def set_chip(lb: QtWidgets.QLabel, ok: bool, text: str) -> None:
+    """Statusschild (grün = ok, gelb = Hinweis); Stil direkt am Widget, damit die Größe stimmt."""
+    col = theme.OK if ok else "#d29922"
+    lb.setText(text)
+    lb.setStyleSheet(f"QLabel {{ background: transparent; border: 1px solid {col}; border-radius: 10px;"
+                     f" padding: 3px 10px; color: {col}; font-size: 9pt; font-weight: 600; }}")
+    lb.setMinimumSize(0, 0)
+    lb.setMaximumSize(16777215, 16777215)
+    lb.adjustSize()
+    lb.setFixedSize(lb.sizeHint())
+
 class Segmented(QtWidgets.QFrame):
     changed = Signal(str)
 

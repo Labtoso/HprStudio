@@ -24,7 +24,7 @@ else
   echo "    Not installed (the portable version needs no uninstall)"
 fi
 
-printf "Restore your own Hyprland/Waybar settings? [y/N] "
+printf "Restore your own Hyprland, Waybar and launcher settings? [y/N] "
 read -r ans
 case "$ans" in
   j|J|y|Y)
@@ -38,13 +38,13 @@ case "$ans" in
         echo "    Include removed: $f (copy: $f.before-uninstall)"
       fi
     done
-    # Copy the original Waybar files back – the generated files stay next to them as *.hyprstudio
-    for n in config.jsonc config.json config style.css; do
-      f="$CFG/waybar/$n"
+    # Copy the originals back (Waybar, Rofi, Wofi, Fuzzel) – the generated files stay next to them as *.hyprstudio
+    for n in waybar/config.jsonc waybar/config.json waybar/config waybar/style.css              rofi/config.rasi wofi/config wofi/style.css fuzzel/fuzzel.ini; do
+      f="$CFG/$n"
       if [ -f "$f.hyprstudio-original" ]; then
         [ -f "$f" ] && cp "$f" "$f.hyprstudio"
         cp "$f.hyprstudio-original" "$f"
-        echo "    Original Waybar file restored: $f"
+        echo "    Original restored: $f"
       fi
     done
     command -v hyprctl >/dev/null && hyprctl reload >/dev/null 2>&1

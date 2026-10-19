@@ -7,7 +7,7 @@ from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
 from .keys import BindEditor
-from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, draw_icon
+from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, draw_icon, set_chip
 
 
 
@@ -150,11 +150,7 @@ class EditorPage(QtWidgets.QWidget):
 
     def update_applied(self):
         ok = self.is_applied()
-        self.applied.setObjectName("ChipOk" if ok else "ChipWarn")
-        self.applied.setText(t("applied") if ok else t("not_applied"))
-        self.applied.style().unpolish(self.applied)
-        self.applied.style().polish(self.applied)
-        self.applied.setFixedSize(self.applied.sizeHint())
+        set_chip(self.applied, ok, t("applied") if ok else t("not_applied"))
         self.refresh_presets_selection()
 
     def apply(self):
@@ -369,6 +365,8 @@ class HyprPage(EditorPage):
             c.toggle("mmb_paste")
             c.toggle("dpms_mouse")
             c.toggle("dpms_key")
+            c = self.card(lay, "card.skip")
+            c.lines("skip_opts", tip="tip.skip_opts")
         elif key == "keys":
             c = self.card(lay, "card.keys")
             self.binds = BindEditor()

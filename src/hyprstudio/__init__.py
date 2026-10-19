@@ -1,5 +1,5 @@
 """Hypr Studio – Hyprland und Waybar per Klick gestalten (LabtosoStudios)."""
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 APP_ID = "de.labtosostudios.hyprstudio"
 APP_NAME = "Hypr Studio"

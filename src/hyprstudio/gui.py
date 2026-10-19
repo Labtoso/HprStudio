@@ -6,12 +6,13 @@ import sys
 import hyprstudio
 from . import model, theme
 from .i18n import t, set_lang
+from .other import OtherPage
 from .pages import HyprPage, LauncherPage, WaybarPage
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .widgets import Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
 
 
-TABS = ("hypr", "waybar", "launcher")
+TABS = ("hypr", "waybar", "launcher", "other")
 
 
 class MainWindow(QtWidgets.QWidget):
@@ -84,6 +85,8 @@ class MainWindow(QtWidgets.QWidget):
         self.stack = QtWidgets.QStackedWidget()
         for pg in self.all_pages():
             self.stack.addWidget(pg)
+        self.other_page = OtherPage(self)
+        self.stack.addWidget(self.other_page)
         cl.addWidget(self.stack, 1)
 
         foot = QtWidgets.QHBoxLayout()
@@ -133,6 +136,13 @@ class MainWindow(QtWidgets.QWidget):
         self.set_tab(self.cfg["tab"])
         if model.DRY:
             self.set_status(t("testmode"))
+        # beim Start nach Config-Fehlern schauen
+        QtCore.QTimer.singleShot(300, self._startup_check)
+
+    def _startup_check(self):
+        n = self.other_page.scan(quiet=True)
+        if n:
+            self.set_status(t("fix.startup", n=n))
 
     # ----- für die Seiten -----
     def all_pages(self):
@@ -196,9 +206,13 @@ class MainWindow(QtWidgets.QWidget):
         self.cfg["tab"] = tab
         self.save_later()
         self.tabs.select(tab)
-        page = {"hypr": self.hypr_page, "waybar": self.waybar_page, "launcher": self.launcher_page}[tab]
+        page = {"hypr": self.hypr_page, "waybar": self.waybar_page, "launcher": self.launcher_page,
+                "other": self.other_page}[tab]
         self.stack.setCurrentWidget(page)
-        if self.cfg.get(f"{tab}_section") == "presets":
+        if tab == "other":
+            if self.cfg.get("other_section", "fix") == "fix":
+                page.scan()
+        elif self.cfg.get(f"{tab}_section") == "presets":
             page.render_presets()
 
     # ----- Einstellungen -----
@@ -257,6 +271,8 @@ class MainWindow(QtWidgets.QWidget):
         self.btn_close.setIcon(draw_icon("close", theme.MUTED, 18))
         for pg in self.all_pages():
             pg.apply_theme(self.accent())
+        if hasattr(self, "other_page"):
+            self.other_page.apply_theme(self.accent())
 
     def retranslate(self):
         self.gear.setToolTip(t("settings"))
@@ -266,6 +282,7 @@ class MainWindow(QtWidgets.QWidget):
         self.tabs.retranslate()
         for pg in self.all_pages():
             pg.retranslate()
+        self.other_page.retranslate()
         self.set_status(t("testmode") if model.DRY else t("ready"))
 
 
@@ -296,7 +313,8 @@ def _shots(w, app, shot, steps):
         if st:
             tab, sec = st.split(":")
             w.set_tab(tab)
-            {"hypr": w.hypr_page, "waybar": w.waybar_page, "launcher": w.launcher_page}[tab].show_section(sec)
+            {"hypr": w.hypr_page, "waybar": w.waybar_page, "launcher": w.launcher_page,
+             "other": w.other_page}[tab].show_section(sec)
         app.processEvents()
         QtCore.QThread.msleep(50)
         app.processEvents()
