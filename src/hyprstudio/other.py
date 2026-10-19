@@ -8,6 +8,7 @@ import shutil
 from . import fixer, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
+from .kitty_page import KittyEditor
 from .widgets import set_chip
 
 
@@ -57,7 +58,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "tools", "backups")
+    SECTIONS = ("fix", "install", "kitty", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -130,6 +131,7 @@ class OtherPage(QtWidgets.QWidget):
                                                                self.win.set_status(t("done")))),
                  ("open_hypr", lambda: self.open_dir("hypr")), ("open_waybar", lambda: self.open_dir("waybar")),
                  ("open_launcher", lambda: self.open_dir(self.win.launcher_page.state["app"])),
+                 ("open_kitty", lambda: self.open_dir("kitty")),
                  ("open_backups", lambda: self.show_section("backups")))
         for i, (k, fn) in enumerate(tools):
             b = QtWidgets.QPushButton()
@@ -197,7 +199,10 @@ class OtherPage(QtWidgets.QWidget):
         il.addStretch()
         self.proc = None
 
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "tools": self.p_tools, "backups": self.p_bak}
+        self.kitty = KittyEditor(win)
+        self.stack.addWidget(self.kitty)
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.kitty, "tools": self.p_tools,
+                      "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
     def _page(self):
@@ -400,7 +405,7 @@ class OtherPage(QtWidgets.QWidget):
         self.load_backups()
 
     def apply_theme(self, accent):
-        pass
+        self.kitty.apply_theme(accent)
 
     def retranslate(self):
         for k, b in self.nav.items():
@@ -412,6 +417,7 @@ class OtherPage(QtWidgets.QWidget):
         for k, b in self.tool_btns.items():
             b.setText(t("tool." + k))
         self.btn_bak_refresh.setText(t("bak.refresh"))
+        self.kitty.retranslate()
         for g in packages.GROUPS:
             self.pkg_rows["_" + g].setText(t("pkgg." + g))
         self.refresh_packages()

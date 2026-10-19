@@ -40,6 +40,13 @@ case "$ans" in
         echo "    Include removed: $f (copy: $f.before-uninstall)"
       fi
     done
+    # Kitty: remove the hyprstudio.conf include from kitty.conf
+    f="$CFG/kitty/kitty.conf"
+    if [ -f "$f" ] && grep -q "^include hyprstudio.conf$" "$f"; then
+        cp "$f" "$f.before-uninstall"
+        sed -i -e "/^# $MARK$/d" -e '/^include hyprstudio.conf$/d' "$f"
+        echo "    Include removed: $f"
+    fi
     # Copy the originals back (Waybar, Rofi, Wofi, Fuzzel) – the generated files stay next to them as *.hyprstudio
     for n in waybar/config.jsonc waybar/config.json waybar/config waybar/style.css              rofi/config.rasi wofi/config wofi/style.css fuzzel/fuzzel.ini; do
       f="$CFG/$n"

@@ -280,6 +280,7 @@ class BindRow(QtWidgets.QFrame):
 
 class BindEditor(QtWidgets.QWidget):
     changed = Signal()
+    saved = Signal()
     fix_requested = Signal()
     import_requested = Signal()
 
@@ -294,7 +295,9 @@ class BindEditor(QtWidgets.QWidget):
         self.btn_add.setObjectName("Primary")
         self.btn_tpl = QtWidgets.QPushButton()
         self.tpl_menu = QtWidgets.QMenu(self.btn_tpl)
+        self.tpl_menu.aboutToShow.connect(self._fill_menu)
         self.btn_tpl.setMenu(self.tpl_menu)
+        self.user_store = lambda: {}
         self.btn_import = QtWidgets.QPushButton()
         self.btn_fix = QtWidgets.QPushButton()
         self.btn_fix.setObjectName("Danger")
@@ -411,11 +414,43 @@ class BindEditor(QtWidgets.QWidget):
         self.btn_fix.setText(t("keys.fix"))
         self.btn_fix.setToolTip(t("tip.keys.fix"))
         self.search.setPlaceholderText(t("search"))
-        self.tpl_menu.clear()
-        for name in model.TEMPLATES:
-            self.tpl_menu.addAction(t("tpl." + name)).triggered.connect(
-                lambda _=False, n=name: self.merge([dict(b) for b in model.TEMPLATES[n]]))
-        self.tpl_menu.addSeparator()
-        self.tpl_menu.addAction(t("tpl.all")).triggered.connect(lambda: self.merge(
-            [dict(b) for n in model.TEMPLATES for b in model.TEMPLATES[n]]))
         self.load(self.read())
+
+    def _fill_menu(self):
+        """Mitgelieferte Vorlagen (anhängen) + eigene Kürzel-Sets (laden, speichern, entfernen)."""
+        m = self.tpl_menu
+        m.clear()
+        for name in model.TEMPLATES:
+            m.addAction(t("tpl." + name)).triggered.connect(
+                lambda _=False, n=name: self.merge([dict(b) for b in model.TEMPLATES[n]]))
+        m.addAction(t("tpl.all")).triggered.connect(lambda: self.merge(
+            [dict(b) for n in model.TEMPLATES for b in model.TEMPLATES[n]]))
+        m.addSeparator()
+        sets = self.user_store()
+        if sets:
+            m.addSection(t("up.mine"))
+            for name in sorted(sets, key=str.lower):
+                m.addAction(t("up.load", name=name)).triggered.connect(lambda _=False, n=name: self._load_set(n))
+        m.addAction(t("up.save_binds")).triggered.connect(self._save_set)
+        if sets:
+            rm = m.addMenu(t("up.remove_set"))
+            for name in sorted(sets, key=str.lower):
+                rm.addAction(name).triggered.connect(lambda _=False, n=name: self._remove_set(n))
+
+    def _save_set(self):
+        name, ok = QtWidgets.QInputDialog.getText(self, t("up.save_binds"), t("up.name"))
+        if ok and name.strip():
+            self.user_store()[name.strip()] = model.clean_binds(self.read())
+            self.saved.emit()
+
+    def _load_set(self, name: str):
+        self.load(model.clean_binds(self.user_store().get(name, [])))
+        self.changed.emit()
+
+    def _remove_set(self, name: str):
+        box = QtWidgets.QMessageBox(self)
+        box.setText(t("up.remove_q", name=name))
+        box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        if box.exec() == QtWidgets.QMessageBox.StandardButton.Yes:
+            self.user_store().pop(name, None)
+            self.saved.emit()

@@ -283,6 +283,7 @@ class MainWindow(QtWidgets.QWidget):
             pg.refresh_controls()
             pg.changed()
         self.launcher_page.preview.ls = self.launcher_page.state
+        self.other_page.kitty.reset_state()
         self.save_later()
         self.set_status(t("reset.done"))
         if not self.logview.isVisible():

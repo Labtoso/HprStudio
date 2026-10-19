@@ -133,7 +133,7 @@ class Segmented(QtWidgets.QFrame):
 
     def retranslate(self):
         for k, b in self.btns.items():
-            b.setText(t(f"{self.prefix}{k}"))
+            b.setText(t(f"{self.prefix}{k}").replace("&", "&&"))
             f = QtGui.QFont(b.font())
             f.setWeight(QtGui.QFont.Weight.DemiBold)
             b.setMinimumWidth(int(QtGui.QFontMetrics(f).horizontalAdvance(b.text())) + 30)

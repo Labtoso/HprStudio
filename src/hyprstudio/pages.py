@@ -7,11 +7,12 @@ from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
 from .keys import BindEditor
+from .userpresets import PREFIX, UserPresetsMixin, store
 from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, draw_icon, set_chip
 
 
 
-class EditorPage(QtWidgets.QWidget):
+class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
     SECTIONS: tuple = ()
     NO_PREVIEW: tuple = ()
     HAS_PLAY = True
@@ -115,6 +116,7 @@ class EditorPage(QtWidgets.QWidget):
         return c
 
     def preset_grid(self, layout, names, prefix):
+        self.build_user_presets(layout)
         grid = FlowGrid(212)
         for n in names:
             pc = PresetCard(n)
@@ -161,7 +163,7 @@ class EditorPage(QtWidgets.QWidget):
         self.win.save_later()
         name = self.win.cfg[f"{self.KIND}_applied_preset"]
         pre = self.presets.get(name)
-        self.win.set_status(t("applied") + (f": {t(pre.property('tkey'))}" if pre else ""))
+        self.win.set_status(t("applied") + (f": {pre.name.text()}" if pre else ""))
         self.update_applied()
 
     def after_undo(self, ok: bool):
@@ -196,7 +198,8 @@ class EditorPage(QtWidgets.QWidget):
             return
         self._presets_dirty = False
         for name, pc in self.presets.items():
-            pc.set_pixmap(self.preset_pixmap(name))
+            pc.set_pixmap(self.state_pixmap(self.user_state(name)) if name.startswith(PREFIX)
+                          else self.preset_pixmap(name))
         self.refresh_presets_selection()
 
     def refresh_presets_selection(self):
@@ -210,7 +213,7 @@ class EditorPage(QtWidgets.QWidget):
         return render_pixmap(hs, ws, 196, 110, 9)
 
     def use_preset(self, name):
-        self.state = self.preset_value(name)
+        self.state = self.user_state(name) if name.startswith(PREFIX) else self.preset_value(name)
         self.refresh_controls()
         self.changed()
         self.win.cfg[f"{self.KIND}_preset"] = name
@@ -231,7 +234,9 @@ class EditorPage(QtWidgets.QWidget):
         for s in self.segs:
             s.retranslate()
         for pc in self.presets.values():
-            pc.name.setText(t(pc.property("tkey")))
+            if pc.property("tkey"):
+                pc.name.setText(t(pc.property("tkey")))
+        self.retranslate_user_presets()
         self.page_title.setText(t("tab." + self.KIND))
         self.btn_play.setText(t("play"))
         self.btn_undo.setText(t("undo"))
@@ -258,6 +263,13 @@ class HyprPage(EditorPage):
 
     def load_state(self):
         return model.hypr_state(self.win.cfg.get("hypr"))
+
+    def sanitize(self, d):
+        return model.hypr_state(d)
+
+    def state_pixmap(self, s):
+        wb = self.win.waybar_page.state if hasattr(self.win, "waybar_page") else None
+        return render_pixmap(s, wb, 196, 110, 9)
 
     def build_section(self, key, lay):
         if key == "presets":
@@ -373,6 +385,8 @@ class HyprPage(EditorPage):
             self.binds.changed.connect(self._binds_changed)
             self.binds.fix_requested.connect(self._fix_conflicts)
             self.binds.import_requested.connect(self._import_binds)
+            self.binds.user_store = lambda: store(self.win.cfg, "binds")
+            self.binds.saved.connect(self.win.save_later)
             c.layout().addWidget(self.binds)
             c.rows.append((QtWidgets.QLabel(), lambda s: (self.binds.load(s["binds"]), self._mark())))
 
@@ -459,6 +473,12 @@ class WaybarPage(EditorPage):
 
     def load_state(self):
         return model.waybar_state(self.win.cfg.get("waybar"))
+
+    def sanitize(self, d):
+        return model.waybar_state(d)
+
+    def state_pixmap(self, s):
+        return render_pixmap(self.win.hypr_page.state, s, 196, 110, 9, bar_scale=2.0)
 
     def build_section(self, key, lay):
         if key == "presets":
@@ -584,6 +604,12 @@ class LauncherPage(EditorPage):
 
     def load_state(self):
         return launcher.state(self.win.cfg.get("launcher"))
+
+    def sanitize(self, d):
+        return launcher.state(d)
+
+    def state_pixmap(self, s):
+        return render_pixmap(self.win.hypr_page.state, self.win.waybar_page.state, 196, 110, 9, ls=s)
 
     def changed(self):
         self.preview.ls = self.state

@@ -6,7 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import fixer, model
+from . import fixer, kitty, model
 
 # Offizielle Beispiel-Config von Hyprland (example/hyprland.lua), gekürzt um die Kommentar-Blöcke
 DEFAULT_LUA = '''-- This is an example Hyprland Lua config file.
@@ -304,6 +304,8 @@ def reset_all(cfg_home: Path, factory: bool, log) -> None:
     remove_include(hdir, log)
     uncomment(hdir, log)
     restore_originals(cfg_home, log)
+    if kitty.remove_include(cfg_home, log):
+        model.run(["pkill", "-USR1", "-x", "kitty"], log, quiet=True)
     if factory:
         write_default(hdir, log)
     model.run(["hyprctl", "reload"], log)
