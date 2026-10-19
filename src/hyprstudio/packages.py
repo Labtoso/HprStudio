@@ -11,7 +11,7 @@ PACKAGES = {
     "wofi": ("launcher", "wofi", {"pacman": ["wofi"], "apt": ["wofi"], "dnf": ["wofi"], "zypper": ["wofi"]}),
     "fuzzel": ("launcher", "fuzzel", {"pacman": ["fuzzel"], "apt": ["fuzzel"], "dnf": ["fuzzel"], "zypper": ["fuzzel"]}),
     "waybar": ("bar", "waybar", {"pacman": ["waybar"], "apt": ["waybar"], "dnf": ["waybar"], "zypper": ["waybar"]}),
-    "nerdfont": ("bar", "font:JetBrainsMono Nerd Font", {"pacman": ["ttf-jetbrains-mono-nerd"]}),
+    "nerdfont": ("bar", "font:JetBrainsMono Nerd Font", {"pacman": ["ttf-jetbrains-mono-nerd", "ttf-nerd-fonts-symbols-mono"]}),
     "pavucontrol": ("bar", "pavucontrol", {"pacman": ["pavucontrol"], "apt": ["pavucontrol"], "dnf": ["pavucontrol"],
                                            "zypper": ["pavucontrol"]}),
     "screenshot": ("tools", "grim", {"pacman": ["grim", "slurp", "wl-clipboard"], "apt": ["grim", "slurp", "wl-clipboard"],

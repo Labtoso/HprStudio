@@ -93,8 +93,8 @@ def _bar(p: QtGui.QPainter, r: QtCore.QRectF, k: float, ws: dict) -> float:
     h = ws["height"]
     m = ws["margin"] if ws["style"] != "bar" else 0
     top = ws["position"] == "top"
-    y = (m if top else VH - m - h)
-    bar = QtCore.QRectF(r.left() + (m * 2) * k, r.top() + y * k, r.width() - (m * 4) * k, h * k)
+    y = r.top() + m * k if top else r.bottom() - (m + h) * k
+    bar = QtCore.QRectF(r.left() + (m * 2) * k, y, r.width() - (m * 4) * k, h * k)
     rad = ws["radius"] * k
     bg, fg, acc = qcolor(ws["bg"]), qcolor(ws["fg"]), qcolor(ws["accent"])
     pen = QtGui.QPen(qcolor(ws["border"]), max(1.0, ws["border_width"] * k)) if ws["border_width"] else Qt.PenStyle.NoPen
@@ -234,7 +234,7 @@ def _window_content(p, rect, hs, k, active):
 
 
 def paint_desktop(p: QtGui.QPainter, r: QtCore.QRectF, hs: dict, ws: dict | None, anim: float = 1.0,
-                  radius: float = 12.0):
+                  radius: float = 12.0, bar_scale: float = 1.0):
     p.save()
     p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
     p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
@@ -247,7 +247,7 @@ def paint_desktop(p: QtGui.QPainter, r: QtCore.QRectF, hs: dict, ws: dict | None
 
     reserved_top = reserved_bottom = 0.0
     if ws is not None:
-        used = _bar(p, r, k, ws)
+        used = _bar(p, r, k * bar_scale, ws) * bar_scale  # bar_scale > 1: Leiste größer (Preset-Kärtchen)
         if ws["position"] == "top":
             reserved_top = used
         else:
@@ -348,14 +348,15 @@ def _overlay(p, r, ls, radius):
     p.restore()
 
 
-def render_pixmap(hs: dict, ws: dict | None, w: int, h: int, radius: float = 10.0, ls: dict | None = None) -> QtGui.QPixmap:
+def render_pixmap(hs: dict, ws: dict | None, w: int, h: int, radius: float = 10.0, ls: dict | None = None,
+                  bar_scale: float = 1.0) -> QtGui.QPixmap:
     dpr = 2
     pm = QtGui.QPixmap(w * dpr, h * dpr)
     pm.setDevicePixelRatio(dpr)
     pm.fill(Qt.GlobalColor.transparent)
     p = QtGui.QPainter(pm)
     r = QtCore.QRectF(0, 0, w, h)
-    paint_desktop(p, r, hs, ws, radius=radius)
+    paint_desktop(p, r, hs, ws, radius=radius, bar_scale=bar_scale)
     if ls:
         _overlay(p, r, ls, radius)
     p.end()

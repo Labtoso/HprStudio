@@ -539,6 +539,10 @@ class WaybarPage(EditorPage):
     def preset_states(self, name):
         return self.win.hypr_page.state, model.waybar_preset(name, self.state)
 
+    def preset_pixmap(self, name):
+        hs, ws = self.preset_states(name)
+        return render_pixmap(hs, ws, 196, 110, 9, bar_scale=2.0)
+
     def preset_value(self, name):
         return model.waybar_preset(name, self.state)
 

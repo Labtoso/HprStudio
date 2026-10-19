@@ -98,6 +98,21 @@ HYPR_PRESETS = {
     "glass": {"gradient": False, "active1": "#ffffff66", "inactive": "#ffffff22", "rounding": 18, "gaps_in": 8,
               "gaps_out": 22, "active_opacity": 0.9, "inactive_opacity": 0.78, "blur_size": 8, "blur_passes": 3,
               "blur_vibrancy": 0.3, "shadow_range": 18, "anim_curve": "bouncy"},
+    "everforest": {"active1": "#a7c080ff", "active2": "#83c092ff", "inactive": "#475258aa", "rounding": 10,
+                   "gaps_out": 14},
+    "kanagawa": {"active1": "#7e9cd8ff", "active2": "#957fb8ff", "inactive": "#363646aa", "rounding": 8, "angle": 90},
+    "onedark": {"active1": "#61afefff", "active2": "#c678ddff", "inactive": "#3e4451aa", "rounding": 10},
+    "solarized": {"active1": "#268bd2ff", "active2": "#2aa198ff", "inactive": "#073642aa", "rounding": 6,
+                  "gaps_in": 4, "gaps_out": 10},
+    "monokai": {"active1": "#a6e22eff", "active2": "#f92672ff", "inactive": "#49483eaa", "rounding": 6, "angle": 135},
+    "neon": {"active1": "#ff2bd6ff", "active2": "#00e5ffff", "inactive": "#1a1a2eaa", "border_size": 3, "rounding": 12,
+             "border_rotate": True, "shadow_color": "#ff2bd666", "shadow_range": 20, "anim_curve": "bouncy"},
+    "sharp": {"gradient": False, "active1": "#e6edf5ff", "inactive": "#30363dff", "border_size": 3, "rounding": 0,
+              "gaps_in": 3, "gaps_out": 6, "shadow": False, "anim_curve": "fast"},
+    "bubbly": {"active1": "#ffb4a2ff", "active2": "#b5838dff", "inactive": "#4a3f4baa", "rounding": 24, "gaps_in": 10,
+               "gaps_out": 24, "rounding_power": 4.0, "anim_curve": "bouncy", "shadow_range": 16},
+    "mono": {"gradient": False, "active1": "#ffffffcc", "inactive": "#ffffff1a", "border_size": 1, "rounding": 8,
+             "inactive_opacity": 0.85, "dim_inactive": True, "dim_strength": 0.2},
     "minimal": {"gradient": False, "active1": "#3d8bfdff", "inactive": "#2a2f38ff", "border_size": 1,
                 "gaps_in": 0, "gaps_out": 0, "rounding": 0, "blur": False, "shadow": False, "anim": False},
 }
@@ -944,6 +959,22 @@ WAYBAR_PRESETS = {
     "rainbow": {"style": "islands", "bg": "#1a1b26ee", "colorful": True, "ws_look": "box", "radius": 10,
                 "left": ["custom/launcher", "hyprland/workspaces", "mpris"], "center": ["clock"],
                 "right": ["cpu", "memory", "pulseaudio", "network", "battery", "tray", "custom/power"]},
+    "dock": {"position": "bottom", "style": "islands", "height": 40, "radius": 20, "margin": 10, "bg": "#151c26f0",
+             "ws_look": "box", "left": [], "center": ["custom/launcher", "hyprland/workspaces"],
+             "right": ["clock", "tray"]},
+    "neon": {"style": "float", "bg": "#0b0b14f0", "fg": "#f8f8ffff", "accent": "#ff2bd6ff", "border_width": 2,
+             "border": "#ff2bd6ff", "radius": 12, "colorful": True, "ws_look": "underline"},
+    "pills": {"style": "islands", "bg": "#1b2430ff", "radius": 18, "height": 34, "ws_look": "box", "pad": 14},
+    "underline": {"style": "bar", "margin": 0, "radius": 0, "height": 30, "bg": "#11111bff", "ws_look": "underline",
+                  "left": ["hyprland/workspaces", "hyprland/window"], "center": [],
+                  "right": ["pulseaudio", "network", "battery", "clock", "tray"]},
+    "clear": {"style": "float", "bg": "#00000000", "fg": "#ffffffff", "ws_look": "text", "border_width": 0},
+    "catppuccin": {"style": "islands", "bg": "#1e1e2ef0", "fg": "#cdd6f4ff", "accent": "#cba6f7ff", "radius": 14,
+                   "border_width": 1, "border": "#313244ff", "colorful": True},
+    "nord": {"style": "float", "bg": "#2e3440ee", "fg": "#eceff4ff", "accent": "#88c0d0ff", "radius": 8,
+             "border_width": 1, "border": "#4c566aff"},
+    "gruvbox": {"style": "bar", "margin": 0, "radius": 0, "bg": "#282828ff", "fg": "#ebdbb2ff", "accent": "#fabd2fff",
+                "ws_look": "box", "height": 30},
     "full": {"style": "bar", "margin": 0, "radius": 0, "height": 32, "bg": "#0e131af0", "colorful": True,
              "left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"], "center": ["clock", "mpris"],
              "right": ["idle_inhibitor", "hyprland/language", "cpu", "memory", "disk", "temperature", "pulseaudio",
@@ -1004,7 +1035,8 @@ def module_cfg(name: str, s: dict) -> dict:
         ws["persistent-workspaces"] = {"*": s["ws_persist"]}
     net = {"essid": "{essid}", "ip": "{ipaddr}", "signal": "{signalStrength}%"}[s["net_fmt"]]
     cfg = {
-        "custom/launcher": {"format": G["arch"] if ic else "Apps", "on-click": s["launcher"], "tooltip": False},
+        "custom/launcher": {"format": G["arch"] if ic else "Apps", "on-click": s["launcher"], "tooltip": False,
+                            "justify": "center"},
         "hyprland/workspaces": ws,
         "hyprland/window": {"max-length": s["win_len"], "separate-outputs": True},
         "clock": {"format": g("clock") + "{:" + clock + "}", "format-alt": "{:%A, %d.%m.%Y}",
@@ -1032,7 +1064,8 @@ def module_cfg(name: str, s: dict) -> dict:
                                   "format-icons": {"default": G["perf"], "performance": G["perf"],
                                                    "balanced": G["bal"], "power-saver": G["save"]}},
         "tray": {"spacing": 8, "icon-size": s["tray_size"]},
-        "custom/power": {"format": G["power"] if ic else "Power", "on-click": s["power_cmd"], "tooltip": False},
+        "custom/power": {"format": G["power"] if ic else "Power", "on-click": s["power_cmd"], "tooltip": False,
+                         "justify": "center"},
     }[name]
     if not s["tooltips"]:
         cfg["tooltip"] = False
@@ -1107,9 +1140,16 @@ window#waybar {{
     color: {rgba_css(fg)};
 }}
 
-{colors}#custom-launcher {{
-    color: {rgba_css(acc)};
+{colors}/* Symbole aus einer Symbol-Schrift: die normale Nerd Font zeichnet sie breiter als ihr Platz → wirken verschoben */
+#custom-launcher, #custom-power {{
+    font-family: "Symbols Nerd Font Mono", "JetBrainsMono Nerd Font Propo", "{s['font']}", sans-serif;
     font-size: {s['font_size'] + 3}px;
+    padding: 0 {pad + (4 if s['style'] == 'islands' else 2)}px;
+    min-width: {s['font_size'] + 3}px;
+}}
+
+#custom-launcher {{
+    color: {rgba_css(acc)};
 }}
 
 #custom-power {{
