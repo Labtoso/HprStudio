@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Hypr Studio (portable)
+Exec=sh -c 'cd "$(dirname "%k")" && sh Portable.sh'
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;

@@ -4,12 +4,12 @@ import os
 import sys
 
 import hyprstudio
-from . import model, theme
+from . import launcher, model, reset, theme
 from .i18n import t, set_lang
 from .other import OtherPage
 from .pages import HyprPage, LauncherPage, WaybarPage
 from .qt import QtCore, QtGui, QtWidgets, Qt
-from .widgets import Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
+from .widgets import ResetDialog, Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
 
 
 TABS = ("hypr", "waybar", "launcher", "other")
@@ -122,6 +122,7 @@ class MainWindow(QtWidgets.QWidget):
         self.panel.hide()
         self.panel.lang_changed.connect(self.set_language)
         self.panel.theme_changed.connect(self.set_theme)
+        self.panel.reset_requested.connect(self.reset_all)
         self.anim = QtCore.QPropertyAnimation(self.panel, b"pos", self)
         self.anim.setDuration(220)
         self.anim.setEasingCurve(QtCore.QEasingCurve.Type.OutCubic)
@@ -250,6 +251,32 @@ class MainWindow(QtWidgets.QWidget):
         self.panel.hide()
         self.dim.hide()
         self.content.setGraphicsEffect(None)
+
+    def reset_all(self):
+        hdir = model.config_home() / "hypr"
+        dlg = ResetDialog(self, model.hypr_format(hdir) in ("lua", None))
+        dlg.setStyleSheet(theme.qss(self.accent()))
+        if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        if self.panel.isVisible():
+            self.toggle_settings()
+        self.log("")
+        self.log("== " + t("reset.title") + " ==")
+        reset.reset_all(model.config_home(), dlg.factory.isChecked(), self.log)
+        defaults = {"hypr": model.hypr_state(None), "waybar": model.waybar_state(None),
+                    "launcher": launcher.state(None)}
+        for pg in self.all_pages():
+            pg.state = defaults[pg.KIND]
+            for k in ("preset", "applied_sig", "applied_preset"):
+                self.cfg[f"{pg.KIND}_{k}"] = ""
+            pg.refresh_controls()
+            pg.changed()
+        self.launcher_page.preview.ls = self.launcher_page.state
+        self.save_later()
+        self.set_status(t("reset.done"))
+        if not self.logview.isVisible():
+            self.btn_log.setChecked(True)
+        QtCore.QTimer.singleShot(700, lambda: self.other_page.scan(quiet=True))
 
     def set_language(self, code: str):
         self.cfg["lang"] = code

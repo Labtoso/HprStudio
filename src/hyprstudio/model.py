@@ -522,7 +522,7 @@ def _comment_lines(main: Path, idx, prefix: str, log) -> int:
     idx = sorted(set(idx))
     if not idx:
         return 0
-    bak = main.with_name(f"{main.name}.hyprstudio-{time.strftime('%Y%m%d-%H%M%S')}")
+    bak = stamp(main)
     shutil.copy2(main, bak)
     log(f"Sicherung: {bak}")
     lines = main.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
@@ -831,6 +831,15 @@ def _has_include(text: str, fmt: str) -> bool:
     return any("hyprstudio" in ln and not ln.strip().startswith(c) for ln in text.splitlines())
 
 
+def stamp(f: Path) -> Path:
+    """Freier Sicherungsname mit Zeitstempel (nie eine vorhandene Sicherung überschreiben)."""
+    base = f"{f.name}.hyprstudio-{time.strftime('%Y%m%d-%H%M%S')}"
+    b, i = f.with_name(base), 1
+    while b.exists():
+        b, i = f.with_name(f"{base}-{i}"), i + 1
+    return b
+
+
 def _keep_previous(target: Path) -> None:
     """Vorherige eigene Version als .bak behalten (für Rückgängig)."""
     if target.is_file():
@@ -846,7 +855,7 @@ def _backup_foreign(target: Path) -> Path | None:
         return None
     dst = target.with_name(target.name + ".hyprstudio-original")
     if dst.exists():
-        dst = target.with_name(f"{target.name}.hyprstudio-{time.strftime('%Y%m%d-%H%M%S')}")
+        dst = stamp(target)
     shutil.copy2(target, dst)
     return dst
 

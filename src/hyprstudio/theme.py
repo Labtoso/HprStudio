@@ -55,6 +55,16 @@ def qss(accent: str) -> str:
     QPushButton#Primary:hover {{ background: {accent}; border-color: #ffffff; }}
     QPushButton#Primary:disabled {{ background: {SURFACE2}; border-color: {SURFACE2}; color: #4d5a6b; }}
     QPushButton#Danger:hover {{ border-color: {DANGER}; color: {DANGER}; }}
+    QPushButton#DangerFill {{ background: transparent; border: 1px solid {DANGER}; color: {DANGER}; font-weight: 600; }}
+    QPushButton#DangerFill:hover {{ background: {DANGER}; color: #ffffff; }}
+    QPushButton#DangerFill:disabled {{ border-color: {SURFACE2}; color: #4d5a6b; background: transparent; }}
+    #DialogFrame {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 16px; }}
+    QCheckBox {{ spacing: 10px; }}
+    QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 6px; border: 1px solid {BORDER}; background: {SURFACE2}; }}
+    QCheckBox::indicator:checked {{ background: {accent}; border-color: {accent}; }}
+    QCheckBox::indicator:disabled {{ background: {BG}; }}
+    QCheckBox#Sure {{ color: {DANGER}; font-weight: 600; }}
+    QCheckBox#Sure::indicator:checked {{ background: {DANGER}; border-color: {DANGER}; }}
     QPushButton#Seg {{ background: transparent; border: none; border-radius: 8px; padding: 6px 14px; color: {MUTED}; }}
     QPushButton#Seg:checked {{ background: {accent}; color: #ffffff; font-weight: 600; }}
     #SegBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; }}

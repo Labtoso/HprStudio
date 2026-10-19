@@ -162,10 +162,9 @@ def comment_line(f: Path, line: int, prefix: str, log) -> bool:
         return False
     if not 0 < line <= len(lines) or lines[line - 1].lstrip().startswith(prefix.strip()):
         return False
-    bak = f.with_name(f"{f.name}.hyprstudio-{time.strftime('%Y%m%d-%H%M%S')}")
-    if not bak.exists():
-        shutil.copy2(f, bak)
-        log(f"Sicherung: {bak}")
+    bak = model.stamp(f)
+    shutil.copy2(f, bak)
+    log(f"Sicherung: {bak}")
     lines[line - 1] = prefix + lines[line - 1]
     f.write_text("".join(lines), encoding="utf-8")
     log(f"Auskommentiert: {f.name}:{line}")
@@ -174,7 +173,7 @@ def comment_line(f: Path, line: int, prefix: str, log) -> bool:
 
 # ---------- Sicherungen ----------
 
-BACKUP_RE = re.compile(r"^(?P<orig>.+?)\.(?:hyprstudio-original|hyprstudio-\d{8}-\d{6}|bak|vor-deinstallation)$")
+BACKUP_RE = re.compile(r"^(?P<orig>.+?)\.(?:hyprstudio-original|hyprstudio-\d{8}-\d{6}(?:-\d+)?|bak|vor-deinstallation)$")
 
 
 def backups(cfg_home: Path) -> list:
@@ -194,7 +193,7 @@ def backups(cfg_home: Path) -> list:
 def restore(backup: Path, target: Path, log) -> bool:
     """Sicherung zurückkopieren; die aktuelle Datei wird vorher selbst gesichert (nichts geht verloren)."""
     if target.is_file():
-        keep = target.with_name(f"{target.name}.hyprstudio-{time.strftime('%Y%m%d-%H%M%S')}")
+        keep = model.stamp(target)
         shutil.copy2(target, keep)
         log(f"Sicherung: {keep}")
     shutil.copy2(backup, target)
