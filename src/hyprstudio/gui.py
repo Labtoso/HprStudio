@@ -6,6 +6,7 @@ import sys
 import hyprstudio
 from . import launcher, model, reset, theme
 from .i18n import t, set_lang
+from .gate import Gate, LauncherGate
 from .other import OtherPage
 from .pages import HyprPage, LauncherPage, WaybarPage
 from .qt import QtCore, QtGui, QtWidgets, Qt
@@ -83,8 +84,11 @@ class MainWindow(QtWidgets.QWidget):
         self.waybar_page = WaybarPage(self)
         self.launcher_page = LauncherPage(self)
         self.stack = QtWidgets.QStackedWidget()
-        for pg in self.all_pages():
-            self.stack.addWidget(pg)
+        self.stack.addWidget(self.hypr_page)
+        self.waybar_gate = Gate(self.waybar_page, "waybar", self)
+        self.launcher_gate = LauncherGate(self.launcher_page, self)
+        self.stack.addWidget(self.waybar_gate)
+        self.stack.addWidget(self.launcher_gate)
         self.other_page = OtherPage(self)
         self.stack.addWidget(self.other_page)
         cl.addWidget(self.stack, 1)
@@ -170,6 +174,18 @@ class MainWindow(QtWidgets.QWidget):
             pg.preview.set_states(hs, ws)
             pg._presets_dirty = True
 
+    def refresh_gates(self):
+        """Ist ein Zusatzprogramm installiert? Sonst großer Installieren-Bildschirm."""
+        if not hasattr(self, "other_page"):
+            return
+        self.waybar_gate.refresh()
+        self.launcher_gate.refresh()
+        for g in self.other_page.gates.values():
+            g.refresh()
+        for pg in self.all_pages():
+            pg.update_info()
+        self.other_page.refresh_packages()
+
     def bar_busy(self, on: bool):
         """Fortschrittsbalken ohne Prozent (läuft hin und her) für Installationen."""
         self.busy_bar.setVisible(on)
@@ -220,7 +236,8 @@ class MainWindow(QtWidgets.QWidget):
         self.tabs.select(tab)
         page = {"hypr": self.hypr_page, "waybar": self.waybar_page, "launcher": self.launcher_page,
                 "other": self.other_page}[tab]
-        self.stack.setCurrentWidget(page)
+        self.stack.setCurrentWidget({"waybar": self.waybar_gate, "launcher": self.launcher_gate}.get(tab, page))
+        self.refresh_gates()
         if tab == "other":
             if self.cfg.get("other_section", "fix") == "fix":
                 page.scan()
@@ -322,6 +339,7 @@ class MainWindow(QtWidgets.QWidget):
         for pg in self.all_pages():
             pg.retranslate()
         self.other_page.retranslate()
+        self.refresh_gates()
         self.set_status(t("testmode") if model.DRY else t("ready"))
 
 

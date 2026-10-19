@@ -8,7 +8,9 @@ import shutil
 from . import fixer, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
+from .gate import Gate
 from .kitty_page import KittyEditor
+from .paper_page import CursorEditor, PaperEditor
 from .widgets import set_chip
 
 
@@ -58,7 +60,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "kitty", "tools", "backups")
+    SECTIONS = ("fix", "install", "kitty", "wallpaper", "cursor", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -200,8 +202,14 @@ class OtherPage(QtWidgets.QWidget):
         self.proc = None
 
         self.kitty = KittyEditor(win)
-        self.stack.addWidget(self.kitty)
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.kitty, "tools": self.p_tools,
+        self.paper = PaperEditor(win)
+        self.cursor = CursorEditor(win)
+        self.gates = {"kitty": Gate(self.kitty, "kitty", win), "wallpaper": Gate(self.paper, "hyprpaper", win),
+                      "cursor": Gate(self.cursor, "hyprcursor", win)}
+        for g in self.gates.values():
+            self.stack.addWidget(g)
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"],
+                      "wallpaper": self.gates["wallpaper"], "cursor": self.gates["cursor"], "tools": self.p_tools,
                       "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
@@ -227,6 +235,8 @@ class OtherPage(QtWidgets.QWidget):
         self.win.save_later()
         self.title.setText(t("sec." + key))
         self.chip.setVisible(key == "fix")
+        if key in self.gates:
+            self.gates[key].refresh()
         if key == "backups":
             self.load_backups()
         elif key == "install":
@@ -307,14 +317,21 @@ class OtherPage(QtWidgets.QWidget):
         return [k for k in packages.PACKAGES if self.pkg_rows[k][0].isChecked()]
 
     def install_selected(self):
-        keys, pm = self._selected(), packages.manager()
+        self.install_keys(self._selected())
+
+    def install_keys(self, keys: list):
+        pm = packages.manager()
         cmd = packages.command(keys, pm) if pm else []
         if not cmd:
             return
         self.win.log("")
         if model.DRY:
             self.win.log("$ pkexec " + " ".join(cmd) + "  (Testmodus)")
+            packages.DRY_INSTALLED.update(keys)
             self.win.set_status(t("pkg.done"))
+            self.win.refresh_gates()
+            if not self.win.logview.isVisible():
+                self.win.btn_log.setChecked(True)
             return
         if not shutil.which("pkexec"):
             self._terminal(cmd)
@@ -342,6 +359,7 @@ class OtherPage(QtWidgets.QWidget):
         else:
             self.win.set_status(t("pkg.done") if code == 0 else t("pkg.failed"))
         self.refresh_packages()
+        self.win.refresh_gates()
 
     def _terminal(self, cmd: list):
         line = "cd /tmp && sudo " + " ".join(cmd) + "; echo; read -r -p 'Enter = schließen' _"
@@ -406,6 +424,8 @@ class OtherPage(QtWidgets.QWidget):
 
     def apply_theme(self, accent):
         self.kitty.apply_theme(accent)
+        self.paper.apply_theme(accent)
+        self.cursor.apply_theme(accent)
 
     def retranslate(self):
         for k, b in self.nav.items():
@@ -418,6 +438,10 @@ class OtherPage(QtWidgets.QWidget):
             b.setText(t("tool." + k))
         self.btn_bak_refresh.setText(t("bak.refresh"))
         self.kitty.retranslate()
+        self.paper.retranslate()
+        self.cursor.retranslate()
+        for g in self.gates.values():
+            g.refresh()
         for g in packages.GROUPS:
             self.pkg_rows["_" + g].setText(t("pkgg." + g))
         self.refresh_packages()

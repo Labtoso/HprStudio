@@ -50,6 +50,13 @@ PRESETS = {
                "border_width": 0, "padding": 10},
     "bigicons": {"grid": True, "columns": 4, "lines": 2, "icon_size": 64, "width": 700, "radius": 22, "el_radius": 16},
     "sharp": {"radius": 0, "el_radius": 0, "border_width": 2, "border": "#e6edf5ff", "sel": "#e6edf533"},
+    "solid": {"bg": "#0e131aff"},
+    "solid_tokyo": {"bg": "#1a1b26ff", "fg": "#c0caf5ff", "accent": "#7aa2f7ff", "sel": "#7aa2f733",
+                    "input_bg": "#24283bff", "border": "#7aa2f7ff"},
+    "solid_catppuccin": {"bg": "#1e1e2eff", "fg": "#cdd6f4ff", "accent": "#cba6f7ff", "sel": "#cba6f733",
+                         "input_bg": "#313244ff", "border": "#cba6f7ff", "radius": 16},
+    "solid_nord": {"bg": "#2e3440ff", "fg": "#eceff4ff", "accent": "#88c0d0ff", "sel": "#88c0d033",
+                   "input_bg": "#3b4252ff", "border": "#4c566aff", "radius": 8},
     "gruvbox": {"bg": "#282828f0", "fg": "#ebdbb2ff", "accent": "#fabd2fff", "sel": "#fabd2f33",
                 "input_bg": "#3c3836ff", "border": "#fabd2fff", "radius": 4, "el_radius": 2},
 }

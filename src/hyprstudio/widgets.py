@@ -163,6 +163,7 @@ class Switch(QtWidgets.QAbstractButton):
         self._anim.start()
 
     def set_now(self, on: bool):
+        self._anim.stop()
         self.blockSignals(True)
         self.setChecked(on)
         self.blockSignals(False)

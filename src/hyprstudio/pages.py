@@ -7,8 +7,10 @@ from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
 from .keys import BindEditor
+from .bar_editor import BarEditor
+from .workspaces import WorkspaceEditor
 from .userpresets import PREFIX, UserPresetsMixin, store
-from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, draw_icon, set_chip
+from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, Switch, draw_icon, set_chip
 
 
 
@@ -256,8 +258,8 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
 
 
 class HyprPage(EditorPage):
-    SECTIONS = ("presets", "windows", "colors", "effects", "anim", "input", "keys", "system")
-    NO_PREVIEW = ("input", "keys", "system")
+    SECTIONS = ("presets", "windows", "workspaces", "colors", "effects", "anim", "input", "keys", "system")
+    NO_PREVIEW = ("workspaces", "input", "keys", "system")
     LOOK_KEYS = model.LOOK_KEYS
     KIND = "hypr"
 
@@ -379,6 +381,13 @@ class HyprPage(EditorPage):
             c.toggle("dpms_key")
             c = self.card(lay, "card.skip")
             c.lines("skip_opts", tip="tip.skip_opts")
+        elif key == "workspaces":
+            c = self.card(lay, "card.workspaces")
+            self.ws_toggle = c.toggle("workspaces_on", tip="tip.workspaces_on")
+            self.wsed = WorkspaceEditor()
+            self.wsed.changed.connect(self._ws_changed)
+            c.layout().addWidget(self.wsed)
+            c.rows.append((QtWidgets.QLabel(), lambda s: self.wsed.load(s["workspaces"])))
         elif key == "keys":
             c = self.card(lay, "card.keys")
             self.binds = BindEditor()
@@ -389,6 +398,13 @@ class HyprPage(EditorPage):
             self.binds.saved.connect(self.win.save_later)
             c.layout().addWidget(self.binds)
             c.rows.append((QtWidgets.QLabel(), lambda s: (self.binds.load(s["binds"]), self._mark())))
+
+    def _ws_changed(self):
+        self.state["workspaces"] = self.wsed.read()
+        if self.state["workspaces"] and not self.state["workspaces_on"]:
+            self.state["workspaces_on"] = True
+            self.ws_toggle.set_now(True)  # nicht alles neu laden, sonst verliert das Eingabefeld den Fokus
+        self.changed()
 
     def _binds_changed(self):
         self.state["binds"] = self.binds.read()
@@ -461,7 +477,8 @@ class HyprPage(EditorPage):
 
 
 class WaybarPage(EditorPage):
-    SECTIONS = ("presets", "bar", "modules", "options", "style")
+    SECTIONS = ("presets", "editor", "bar", "modules", "options", "style")
+    NO_PREVIEW = ("editor",)
     HAS_PLAY = False
     LOOK_KEYS = model.WB_LOOK
     KIND = "waybar"
@@ -469,6 +486,24 @@ class WaybarPage(EditorPage):
     def __init__(self, win):
         super().__init__(win)
         self.preview.zoom_bar = True
+        # Ein/Aus-Schalter und Installieren direkt unter dem Titel
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(8)
+        self.on_switch = Switch()
+        self.on_switch.set_now(self.state["enabled"])
+        self.on_switch.toggled.connect(self.set_enabled)
+        self.on_label = QtWidgets.QLabel()
+        self.on_label.setObjectName("RowLabel")
+        self.btn_install = QtWidgets.QPushButton()
+        self.btn_install.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_install.clicked.connect(lambda: self.win.other_page.install_keys(["waybar"]))
+        row.addWidget(self.on_switch)
+        row.addWidget(self.on_label)
+        row.addSpacing(8)
+        row.addWidget(self.btn_install)
+        row.addStretch()
+        self.acts.insertLayout(2, row)
+        self.switches.append(self.on_switch)
         self.preview.setFixedHeight(190)
 
     def load_state(self):
@@ -496,6 +531,13 @@ class WaybarPage(EditorPage):
             c.slider("spacing", 0, 20)
             c.slider("pad", 0, 24)
             c.slider("border_width", 0, 4)
+        elif key == "editor":
+            c = self.card(lay, "card.editor")
+            self.bared = BarEditor()
+            self.bared.setToolTip(t("tip.editor"))
+            self.bared.changed.connect(self._editor_changed)
+            c.layout().addWidget(self.bared)
+            c.rows.append((QtWidgets.QLabel(), lambda s: self.bared.load(s)))
         elif key == "modules":
             c = self.card(lay, "sec.modules")
             self.mods = ModuleColumns()
@@ -541,6 +583,29 @@ class WaybarPage(EditorPage):
             c.choice("font_weight", ("normal", "600", "bold"), "fw.")
             c.toggle("icons")
 
+    def _editor_changed(self, lists):
+        self.state.update(lists)
+        self.win.cfg["waybar_preset"] = ""
+        self.refresh_controls()
+        self.changed()
+
+    def set_enabled(self, on: bool):
+        self.state["enabled"] = bool(on)
+        self.win.log("")
+        if on:
+            model.restart_waybar(self.win.log)
+            self.win.set_status(t("wb.on"))
+        else:
+            model.run(["pkill", "-x", "waybar"], self.win.log, quiet=True)
+            hp = self.win.hypr_page
+            if hp.state["autostart_waybar"]:
+                hp.state["autostart_waybar"] = False
+                hp.refresh_controls()
+                hp.changed()
+                hp.apply()
+            self.win.set_status(t("wb.off"))
+        self.changed()
+
     def _mods_changed(self):
         new = self.mods.read()
         if any(new[k] != self.state[k] for k in new):
@@ -573,7 +638,7 @@ class WaybarPage(EditorPage):
         if not model.which("waybar"):
             self.win.report(False, "nowaybar")
             return False
-        ok, info = model.apply_waybar(self.state, self.wdir(), self.win.log)
+        ok, info = model.apply_waybar(self.state, self.wdir(), self.win.log, restart=self.state["enabled"])
         self.win.report(ok, info)
         return ok
 
@@ -589,7 +654,13 @@ class WaybarPage(EditorPage):
             self.btn_from.setText(t("from_hypr"))
 
     def update_info(self):
-        self.info.setText("Waybar · " + ("✓" if model.which("waybar") else t("fmt.none")))
+        ok = model.which("waybar") and not getattr(self.win, "_fake_missing", False)
+        self.info.setText("Waybar · " + ("✓" if ok else t("fmt.none")))
+        if hasattr(self, "btn_install"):
+            self.btn_install.setVisible(not ok)
+            self.btn_install.setText(t("wb.install"))
+            self.on_label.setText(t("wb.enabled"))
+            self.on_switch.set_now(self.state["enabled"])
 
 
 class LauncherPage(EditorPage):
@@ -624,6 +695,11 @@ class LauncherPage(EditorPage):
             self.app_info = QtWidgets.QLabel()
             self.app_info.setObjectName("RowLabel")
             c.layout().addWidget(self.app_info)
+            self.btn_inst_app = QtWidgets.QPushButton()
+            self.btn_inst_app.setObjectName("Primary")
+            self.btn_inst_app.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_inst_app.clicked.connect(lambda: self.win.other_page.install_keys([self.state["app"]]))
+            c.layout().addWidget(self.btn_inst_app, 0, Qt.AlignmentFlag.AlignLeft)
             self.btn_use = QtWidgets.QPushButton()
             self.btn_use.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_use.clicked.connect(self.use_everywhere)
@@ -678,6 +754,8 @@ class LauncherPage(EditorPage):
         super().set(key, value)
         if key == "app":
             self.update_info()
+            if hasattr(self.win, "launcher_gate"):
+                self.win.launcher_gate.refresh()
 
     def from_hypr(self):
         hs = self.win.hypr_page.state
@@ -737,6 +815,9 @@ class LauncherPage(EditorPage):
         app = self.state["app"]
         ok = model.which(app)
         self.info.setText(f"{app.capitalize()} · " + ("✓" if ok else t("fmt.none")))
+        if hasattr(self, "btn_inst_app"):
+            self.btn_inst_app.setVisible(not ok)
+            self.btn_inst_app.setText(t("launcher.install", app=app.capitalize()))
         if hasattr(self, "app_info"):
             self.app_info.setText(t("launcher.cmd", cmd=launcher.COMMANDS[app]) +
                                   ("" if ok else "  ·  " + t("launcher.missing", app=app)))

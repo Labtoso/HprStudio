@@ -37,6 +37,8 @@ def qss(accent: str) -> str:
     QSlider::sub-page:horizontal {{ background: {accent}; border-radius: 3px; }}
     QSlider::handle:horizontal {{ background: {TEXT}; width: 16px; height: 16px; margin: -5px 0; border-radius: 8px; }}
     QSlider::handle:horizontal:hover {{ background: #ffffff; }}
+    QSpinBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 0 6px; min-height: 30px; }}
+    QSpinBox:focus {{ border-color: {accent}; }}
     QLineEdit, QComboBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 6px 10px; }}
     QLineEdit:focus, QComboBox:hover {{ border-color: {accent}; }}
     QComboBox::drop-down {{ border: none; width: 22px; }}
@@ -108,4 +110,6 @@ def qss(accent: str) -> str:
     QPushButton#Lang:checked {{ border-color: {accent}; color: {accent}; font-weight: 600; }}
     QToolTip {{ background: {SURFACE2}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 6px; padding: 6px; }}
     QColorDialog, QColorDialog QWidget {{ background: {SURFACE}; }}
+    QSpinBox QLineEdit {{ background: transparent; border: none; padding: 0; }}
+    QSpinBox::up-button, QSpinBox::down-button {{ width: 0; height: 0; border: none; }}
     """

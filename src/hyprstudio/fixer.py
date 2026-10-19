@@ -94,6 +94,11 @@ def option_path(text: str, line: int) -> str | None:
 
 
 FEATURES = (  # Zeilenanfang in der eigenen Datei → Funktion, die abgeschaltet wird
+    (('hl.workspace_rule({ workspace = "1', 'hl.workspace_rule({ workspace = "2', 'hl.workspace_rule({ workspace = "3',
+      'hl.workspace_rule({ workspace = "4', 'hl.workspace_rule({ workspace = "5', 'hl.workspace_rule({ workspace = "6',
+      'hl.workspace_rule({ workspace = "7', 'hl.workspace_rule({ workspace = "8', 'hl.workspace_rule({ workspace = "9',
+      "workspace = 1,", "workspace = 2,", "workspace = 3,", "workspace = 4,", "workspace = 5,", "workspace = 6,",
+      "workspace = 7,", "workspace = 8,", "workspace = 9,", "workspace = 10,"), {"workspaces_on": False}),
     (("hl.gesture", "gesture ="), {"gesture": 0}),
     (("hl.workspace_rule", "hl.window_rule", "workspace = w[", "workspace = f[", 'name  = "hs-no-gaps', "match = {",
       "border_size = 0", "rounding    = 0"), {"smart_gaps": False}),

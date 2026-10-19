@@ -21,10 +21,12 @@ PACKAGES = {
                                      "dnf": ["playerctl", "brightnessctl"], "zypper": ["playerctl", "brightnessctl"]}),
     "hyprpicker": ("tools", "hyprpicker", {"pacman": ["hyprpicker"], "dnf": ["hyprpicker"]}),
     "hyprlock": ("tools", "hyprlock", {"pacman": ["hyprlock"], "dnf": ["hyprlock"]}),
+    "hyprcursor": ("tools", "hyprcursor-util", {"pacman": ["hyprcursor"], "dnf": ["hyprcursor"]}),
     "hyprpaper": ("tools", "hyprpaper", {"pacman": ["hyprpaper"], "dnf": ["hyprpaper"]}),
     "cliphist": ("tools", "cliphist", {"pacman": ["cliphist"]}),
 }
 GROUPS = ("launcher", "bar", "tools")
+DRY_INSTALLED: set = set()
 
 
 def manager() -> str | None:
@@ -38,8 +40,8 @@ def manager() -> str | None:
 
 def installed(key: str) -> bool:
     check = PACKAGES[key][1]
-    if model.DRY:
-        return key in ("waybar", "rofi")  # Testmodus: etwas gemischt anzeigen
+    if model.DRY:  # Testmodus: etwas gemischt anzeigen, „Installiertes“ merken
+        return key in ("waybar", "rofi") or key in DRY_INSTALLED
     if check.startswith("font:"):
         try:
             out = subprocess.run(["fc-list"], capture_output=True, text=True, timeout=8).stdout

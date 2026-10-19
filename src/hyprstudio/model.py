@@ -76,6 +76,7 @@ HYPR_DEFAULT = {
     "swallow_regex": "^(kitty|foot|Alacritty)$", "mmb_paste": True, "dpms_mouse": True, "dpms_key": True,
     "monitor_on": False, "monitor_mode": "preferred", "monitor_scale": "auto",
     "autostart": [], "autostart_waybar": False,
+    "workspaces_on": False, "workspaces": [],  # Arbeitsflächen-Regeln (Name, Monitor, Lücken …)
     "skip_opts": [],  # vom Fehler-Fixer abgeschaltete Optionen, z. B. "decoration.blur.xray"
     "binds": [],  # leer = Hypr Studio schreibt keine Tastenkürzel
 }
@@ -134,12 +135,14 @@ WS_STYLES = {"slide": "slide", "slidevert": "slidevert", "fade": "fade", "slidef
 
 def hypr_state(saved: dict | None) -> dict:
     s = dict(HYPR_DEFAULT)
-    s["binds"], s["autostart"], s["skip_opts"] = [], [], []
+    s["binds"], s["autostart"], s["skip_opts"], s["workspaces"] = [], [], [], []
     for k, v in (saved or {}).items():
         if k not in s:
             continue
         if k == "binds":
             s[k] = clean_binds(v)
+        elif k == "workspaces":
+            s[k] = clean_workspaces(v)
         elif k in ("autostart", "skip_opts"):
             s[k] = [x for x in v if isinstance(x, str)] if isinstance(v, list) else []
         elif type(v) is type(s[k]):
@@ -156,6 +159,81 @@ def preset_state(name: str, base: dict | None = None) -> dict:
         s[k] = HYPR_DEFAULT[k]
     s.update(HYPR_PRESETS.get(name, {}))
     return s
+
+
+# ---------- Arbeitsflächen ----------
+
+WS_FIELDS = {"id": 1, "name": "", "monitor": "", "gaps_in": -1, "gaps_out": -1, "border": -1, "persistent": False,
+             "default": False, "no_rounding": False, "layout": "", "on_empty": ""}
+
+
+def clean_workspaces(v) -> list:
+    out, seen = [], set()
+    for w in v if isinstance(v, list) else []:
+        if not isinstance(w, dict):
+            continue
+        d = dict(WS_FIELDS)
+        for k, default in WS_FIELDS.items():
+            x = w.get(k, default)
+            if type(x) is type(default):
+                d[k] = x.strip() if isinstance(x, str) else x
+        if 1 <= d["id"] <= 10 and d["id"] not in seen:
+            seen.add(d["id"])
+            out.append(d)
+    return sorted(out, key=lambda x: x["id"])
+
+
+def default_workspaces() -> list:
+    return [dict(WS_FIELDS, id=i) for i in range(1, 11)]
+
+
+def ws_used(w: dict) -> bool:
+    """Hat die Arbeitsfläche irgendeine eigene Einstellung?"""
+    return any(w[k] != WS_FIELDS[k] for k in WS_FIELDS if k != "id")
+
+
+def ws_lua(w: dict) -> str:
+    parts = [f'workspace = "{w["id"]}"']
+    if w["name"]:
+        parts.append(f"default_name = {_lua_str(w['name'])}")
+    if w["monitor"]:
+        parts.append(f"monitor = {_lua_str(w['monitor'])}")
+    if w["default"]:
+        parts.append("default = true")
+    if w["persistent"]:
+        parts.append("persistent = true")
+    for k, lk in (("gaps_in", "gaps_in"), ("gaps_out", "gaps_out"), ("border", "border_size")):
+        if w[k] >= 0:
+            parts.append(f"{lk} = {w[k]}")
+    if w["no_rounding"]:
+        parts.append("no_rounding = true")
+    if w["layout"]:
+        parts.append(f"layout = {_lua_str(w['layout'])}")
+    if w["on_empty"]:
+        parts.append(f"on_created_empty = {_lua_str(w['on_empty'])}")
+    return "hl.workspace_rule({ " + ", ".join(parts) + " })"
+
+
+def ws_conf(w: dict) -> str:
+    parts = [str(w["id"])]
+    if w["name"]:
+        parts.append(f"defaultName:{w['name']}")
+    if w["monitor"]:
+        parts.append(f"monitor:{w['monitor']}")
+    if w["default"]:
+        parts.append("default:true")
+    if w["persistent"]:
+        parts.append("persistent:true")
+    for k, ck in (("gaps_in", "gapsin"), ("gaps_out", "gapsout"), ("border", "bordersize")):
+        if w[k] >= 0:
+            parts.append(f"{ck}:{w[k]}")
+    if w["no_rounding"]:
+        parts.append("rounding:false")
+    if w["layout"]:
+        parts.append(f"layout:{w['layout']}")
+    if w["on_empty"]:
+        parts.append(f"on-created-empty:{w['on_empty']}")
+    return "workspace = " + ", ".join(parts)
 
 
 # ---------- Tastenkürzel ----------
@@ -770,6 +848,9 @@ def hypr_lua(s: dict) -> str:
                          f'bezier = "{curve}"{st} }})')
     if s["smart_gaps"]:
         lines += SMART_GAPS_LUA.split("\n")
+    wss = [w for w in s["workspaces"] if ws_used(w)] if s["workspaces_on"] else []
+    if wss:
+        lines += ["", "-- Arbeitsflächen"] + [ws_lua(w) for w in wss]
     if s["gesture"]:
         lines += ["", f'hl.gesture({{ fingers = {s["gesture"]}, direction = "horizontal", action = "workspace" }})']
     lines += ["", f'hl.env("XCURSOR_SIZE", "{s["cursor_size"]}")', f'hl.env("HYPRCURSOR_SIZE", "{s["cursor_size"]}")']
@@ -812,6 +893,8 @@ def hypr_conf(s: dict) -> str:
     out.append("}")
     if s["smart_gaps"]:
         out += ["workspace = w[tv1], gapsout:0, gapsin:0", "workspace = f[1], gapsout:0, gapsin:0"]
+    if s["workspaces_on"]:
+        out += [ws_conf(w) for w in s["workspaces"] if ws_used(w)]
     if s["gesture"]:
         out.append(f"gesture = {s['gesture']}, horizontal, workspace")
     out += [f"env = XCURSOR_SIZE,{s['cursor_size']}", f"env = HYPRCURSOR_SIZE,{s['cursor_size']}"]
@@ -929,7 +1012,7 @@ WAYBAR_DEFAULT = {
     "left": ["custom/launcher", "hyprland/workspaces"], "center": ["clock"],
     "right": ["pulseaudio", "network", "battery", "tray"],
     # Verhalten und Module (bleiben beim Preset-Wechsel)
-    "layer": "top", "exclusive": True, "tooltips": True,
+    "enabled": True, "layer": "top", "exclusive": True, "tooltips": True,
     "font": "JetBrainsMono Nerd Font", "font_size": 13, "font_weight": "bold", "icons": True,
     "clock24": True, "clock_fmt": "hm", "ws_format": "number", "ws_persist": 0, "win_len": 48,
     "bat_warn": 30, "bat_crit": 15, "net_fmt": "essid", "vol_step": 5, "vol_click": "pavucontrol",
@@ -1199,7 +1282,7 @@ def waybar_files(wdir: Path) -> tuple[Path, Path]:
     return wdir / "config.jsonc", wdir / "style.css"
 
 
-def apply_waybar(s: dict, wdir: Path, log) -> tuple[bool, str]:
+def apply_waybar(s: dict, wdir: Path, log, restart: bool = True) -> tuple[bool, str]:
     wdir.mkdir(parents=True, exist_ok=True)
     cfg, css = waybar_files(wdir)
     for target, data in ((cfg, waybar_json(s)), (css, waybar_css(s))):
@@ -1208,7 +1291,8 @@ def apply_waybar(s: dict, wdir: Path, log) -> tuple[bool, str]:
             log(f"Sicherung: {bak}")
         target.write_text(data, encoding="utf-8")
         log(f"→ {target}")
-    restart_waybar(log)
+    if restart:
+        restart_waybar(log)
     return True, ""
 
 
