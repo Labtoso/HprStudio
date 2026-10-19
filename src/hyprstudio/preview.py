@@ -74,8 +74,18 @@ def _wallpaper(w: int, h: int) -> tuple:
 MOD_TEXT = {
     "custom/launcher": "", "hyprland/window": "kitty", "clock": "14:32", "pulseaudio": "60%",
     "network": "WLAN", "battery": "87%", "backlight": "70%", "bluetooth": "BT", "cpu": "12%",
-    "memory": "41%", "temperature": "48°", "tray": "",
+    "memory": "41%", "temperature": "48°", "tray": "", "disk": "37%", "mpris": "Artist – Song",
+    "hyprland/language": "DE", "idle_inhibitor": "", "power-profiles-daemon": "", "custom/power": "",
 }
+
+
+def mod_text(mod: str, ws: dict) -> str:
+    if mod == "clock":
+        h = "14:32" if ws["clock24"] else "2:32 PM"
+        return {"hm": h, "hms": h.replace("32", "32:05", 1), "dhm": "Mo " + h, "full": "18.10.2026  " + h}[ws["clock_fmt"]]
+    if mod == "network":
+        return {"essid": "WLAN", "ip": "192.168.1.20", "signal": "78%"}[ws["net_fmt"]]
+    return MOD_TEXT.get(mod, "")
 
 
 def _bar(p: QtGui.QPainter, r: QtCore.QRectF, k: float, ws: dict) -> float:
@@ -97,18 +107,23 @@ def _bar(p: QtGui.QPainter, r: QtCore.QRectF, k: float, ws: dict) -> float:
     f.setWeight(QtGui.QFont.Weight.DemiBold)
     p.setFont(f)
     fm = QtGui.QFontMetricsF(f)
-    pad = (12 if ws["style"] == "islands" else 10) * k
+    pad = (ws["pad"] + (2 if ws["style"] == "islands" else 0)) * k
+    f.setWeight(QtGui.QFont.Weight.Bold if ws["font_weight"] == "bold" else
+                QtGui.QFont.Weight.DemiBold if ws["font_weight"] == "600" else QtGui.QFont.Weight.Normal)
+    p.setFont(f)
+    fm = QtGui.QFontMetricsF(f)
+    n_ws = max(4, ws["ws_persist"])
     gap = (6 if ws["style"] == "islands" else ws["spacing"]) * k
 
     def width(mod):
         if mod == "hyprland/workspaces":
-            return 4 * (fm.horizontalAdvance("4") + 14 * k)
-        if mod == "custom/launcher":
+            return n_ws * (fm.horizontalAdvance("4") + 14 * k)
+        if mod in ("custom/launcher", "custom/power", "idle_inhibitor", "power-profiles-daemon"):
             return fm.height() * 0.9
         if mod == "tray":
             return 2 * fm.height() * 0.5 + 6 * k
         dot = fm.height() * 0.45 + 5 * k if ws["icons"] else 0
-        return dot + fm.horizontalAdvance(MOD_TEXT.get(mod, ""))
+        return dot + fm.horizontalAdvance(mod_text(mod, ws))
 
     def draw(mod, x):
         wdt = width(mod)
@@ -124,18 +139,29 @@ def _bar(p: QtGui.QPainter, r: QtCore.QRectF, k: float, ws: dict) -> float:
         p.setPen(Qt.PenStyle.NoPen)
         if mod == "hyprland/workspaces":
             cw = fm.horizontalAdvance("4") + 14 * k
-            for i in range(4):
+            look = ws["ws_look"]
+            for i in range(n_ws):
                 rr = QtCore.QRectF(cx + i * cw, cy - fm.height() * 0.6, cw, fm.height() * 1.2)
+                c = QtGui.QColor(fg)
                 if i == 0:
-                    a = QtGui.QColor(acc)
-                    a.setAlpha(46)
-                    p.setBrush(a)
-                    p.drawRoundedRect(rr, max(2, rad / 2), max(2, rad / 2))
-                c = QtGui.QColor(acc) if i == 0 else QtGui.QColor(fg)
-                if i:
-                    c.setAlpha(140)
-                p.setPen(c)
-                p.drawText(rr, Qt.AlignmentFlag.AlignCenter, str(i + 1))
+                    c = QtGui.QColor("#0e131a") if look == "box" else QtGui.QColor(fg if look == "underline" else acc)
+                    if look in ("pill", "box"):
+                        a = QtGui.QColor(acc)
+                        a.setAlpha(46 if look == "pill" else 255)
+                        p.setBrush(a)
+                        p.drawRoundedRect(rr, max(2, rad / 2), max(2, rad / 2))
+                    elif look == "underline":
+                        p.setBrush(acc)
+                        p.drawRect(QtCore.QRectF(rr.left(), bar.bottom() - 3 * k, rr.width(), 3 * k))
+                else:
+                    c.setAlpha(140 if i < 3 else 80)
+                if ws["ws_format"] == "dot" and ws["icons"]:
+                    p.setBrush(c)
+                    d = fm.height() * (0.42 if i == 0 else 0.3)
+                    p.drawEllipse(rr.center(), d / 2, d / 2)
+                else:
+                    p.setPen(c)
+                    p.drawText(rr, Qt.AlignmentFlag.AlignCenter, str(i + 1))
                 p.setPen(Qt.PenStyle.NoPen)
         elif mod == "custom/launcher":
             p.setBrush(acc)
@@ -143,6 +169,13 @@ def _bar(p: QtGui.QPainter, r: QtCore.QRectF, k: float, ws: dict) -> float:
             tri = QtGui.QPolygonF([QtCore.QPointF(cx + wdt / 2, cy - d / 2), QtCore.QPointF(cx + wdt / 2 + d / 2, cy + d / 2),
                                    QtCore.QPointF(cx + wdt / 2 - d / 2, cy + d / 2)])
             p.drawPolygon(tri)
+        elif mod in ("custom/power", "idle_inhibitor", "power-profiles-daemon"):
+            col = QtGui.QColor("#e5534b") if mod == "custom/power" else qcolor(model.module_color(mod, ws))
+            p.setPen(QtGui.QPen(col, max(1.0, 1.6 * k * 2)))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            d = fm.height() * 0.55
+            p.drawEllipse(QtCore.QPointF(cx + wdt / 2, cy), d / 2, d / 2)
+            p.setPen(Qt.PenStyle.NoPen)
         elif mod == "tray":
             p.setBrush(QtGui.QColor(fg.red(), fg.green(), fg.blue(), 150))
             d = fm.height() * 0.5
@@ -150,13 +183,14 @@ def _bar(p: QtGui.QPainter, r: QtCore.QRectF, k: float, ws: dict) -> float:
                 p.drawRoundedRect(QtCore.QRectF(cx + i * (d + 6 * k), cy - d / 2, d, d), 2, 2)
         else:
             tx = cx
+            mc = qcolor(model.module_color(mod, ws)) if ws["colorful"] else acc
             if ws["icons"]:
                 d = fm.height() * 0.45
-                p.setBrush(acc)
+                p.setBrush(mc)
                 p.drawEllipse(QtCore.QRectF(cx, cy - d / 2, d, d))
                 tx += d + 5 * k
-            p.setPen(fg)
-            p.drawText(QtCore.QRectF(tx, bar.top(), wdt, bar.height()), Qt.AlignmentFlag.AlignVCenter, MOD_TEXT.get(mod, ""))
+            p.setPen(mc if ws["colorful"] else fg)
+            p.drawText(QtCore.QRectF(tx, bar.top(), wdt, bar.height()), Qt.AlignmentFlag.AlignVCenter, mod_text(mod, ws))
         return full
 
     def group_w(mods):

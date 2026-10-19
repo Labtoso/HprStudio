@@ -61,6 +61,11 @@ def draw_icon(kind: str, color: str, size: int = 20) -> QtGui.QIcon:
     elif kind == "min":
         m = size * 0.3
         p.drawLine(QtCore.QPointF(m, c), QtCore.QPointF(size - m, c))
+    elif kind == "dots":
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QtGui.QColor(color))
+        for x in (0.25, 0.5, 0.75):
+            p.drawEllipse(QtCore.QPointF(size * x, c), size * 0.08, size * 0.08)
     elif kind == "play":
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QtGui.QColor(color))
@@ -316,10 +321,10 @@ class Card(QtWidgets.QFrame):
         self._add(key, cb, None, tip, lambda s: cb.set_color(s[key]), label_key=label_key)
         return cb
 
-    def choice(self, key, options, prefix):
+    def choice(self, key, options, prefix, tip=None):
         seg = Segmented(options, prefix=prefix)
         seg.changed.connect(lambda v: self.page.set(key, int(v) if isinstance(self.page.state[key], int) else v))
-        self._add(key, seg, None, None, lambda s: seg.select(str(s[key])))
+        self._add(key, seg, None, tip, lambda s: seg.select(str(s[key])))
         self.page.segs.append(seg)
         return seg
 
@@ -333,6 +338,22 @@ class Card(QtWidgets.QFrame):
                 le.setText(s[key])
         self._add(key, le, None, tip, refresh)
         return le
+
+    def lines(self, key, tip=None):
+        """Mehrzeiliges Feld: eine Zeile = ein Listeneintrag."""
+        ed = QtWidgets.QPlainTextEdit()
+        ed.setFixedHeight(110)
+        ed.setMinimumWidth(380)
+        ed.textChanged.connect(lambda: self.page.set(key, [x.strip() for x in ed.toPlainText().splitlines()
+                                                           if x.strip()]))
+
+        def refresh(s):
+            if [x.strip() for x in ed.toPlainText().splitlines() if x.strip()] != s[key]:
+                ed.blockSignals(True)
+                ed.setPlainText("\n".join(s[key]))
+                ed.blockSignals(False)
+        self._add(key, ed, None, tip, refresh)
+        return ed
 
     def refresh(self, s):
         for _, fn in self.rows:

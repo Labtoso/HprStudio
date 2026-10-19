@@ -3,7 +3,7 @@
 import sys
 
 from . import model, theme
-from .i18n import t
+from .i18n import TEXT, t
 from .qt import QtCore, QtGui, QtWidgets, Qt, Signal
 from .widgets import draw_icon
 
@@ -48,22 +48,26 @@ def _v(k) -> int:
 
 
 class KeyButton(QtWidgets.QPushButton):
-    """Klicken, dann Kombination drücken; Esc bricht ab."""
+    """Linksklick: Kombination drücken (Esc bricht ab). Rechtsklick: Sondertasten oder von Hand eingeben."""
     captured = Signal(list, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("KeyBtn")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedWidth(130)
+        self.setFixedWidth(150)
         self.key = ""
         self.listening = False
         self.clicked.connect(self.start)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._menu)
 
     def set_key(self, key: str):
         self.key = key
         self.listening = False
-        self.setText(key or t("keys.none"))
+        self.setText(QtGui.QFontMetrics(self.font()).elidedText(key or t("keys.none"),
+                                                                 Qt.TextElideMode.ElideMiddle, 132))
+        self.setToolTip(t("tip.keybtn") + (f"\n{key}" if key else ""))
 
     def start(self):
         self.listening = True
@@ -75,6 +79,24 @@ class KeyButton(QtWidgets.QPushButton):
         if self.listening:
             self.releaseKeyboard()
         self.set_key(self.key)
+
+    def _menu(self, pos):
+        m = QtWidgets.QMenu(self)
+        manual = m.addAction(t("keys.manual"))
+        m.addSeparator()
+        for k in model.SPECIAL_KEYS:
+            m.addAction(t("key." + k) if ("key." + k) in TEXT["de"] else k).setData(k)
+        a = m.exec(self.mapToGlobal(pos))
+        if a is None:
+            return
+        if a is manual:
+            txt, ok = QtWidgets.QInputDialog.getText(self, t("keys.manual"), t("keys.manual_q"), text=self.key)
+            if ok and txt.strip():
+                self.set_key(txt.strip())
+                self.captured.emit([], self.key)
+        elif a.data():
+            self.set_key(a.data())
+            self.captured.emit([], self.key)
 
     def keyPressEvent(self, e):
         if not self.listening:
@@ -104,6 +126,7 @@ class KeyButton(QtWidgets.QPushButton):
 class BindRow(QtWidgets.QFrame):
     changed = Signal()
     removed = Signal(object)
+    duplicated = Signal(object)
 
     def __init__(self, b: dict, parent=None):
         super().__init__(parent)
@@ -128,7 +151,8 @@ class BindRow(QtWidgets.QFrame):
         lay.addWidget(self.keybtn)
         lay.addSpacing(6)
         self.action = QtWidgets.QComboBox()
-        self.action.setFixedWidth(210)
+        self.action.setFixedWidth(220)
+        self.action.setMaxVisibleItems(20)
         for a in model.ACTIONS:
             self.action.addItem(t("act." + a), a)
         self.action.setCurrentIndex(list(model.ACTIONS).index(b["action"]))
@@ -136,6 +160,7 @@ class BindRow(QtWidgets.QFrame):
         lay.addWidget(self.action)
         self.arg = QtWidgets.QComboBox()
         self.arg.setMinimumWidth(200)
+        self.arg.setMaxVisibleItems(20)
         self.arg.currentTextChanged.connect(lambda _: self.changed.emit())
         lay.addWidget(self.arg, 1)
         lay.addStretch(0)
@@ -145,6 +170,22 @@ class BindRow(QtWidgets.QFrame):
         self.warn.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.warn.hide()
         lay.addWidget(self.warn)
+        # Flags + Duplizieren im Menü
+        self.more = QtWidgets.QToolButton()
+        self.more.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.more.setCursor(Qt.CursorShape.PointingHandCursor)
+        menu = QtWidgets.QMenu(self.more)
+        self.flag_acts = {}
+        for f in model.FLAGS:
+            a = menu.addAction(t("flag." + f))
+            a.setCheckable(True)
+            a.setChecked(f in b.get("flags", []))
+            a.toggled.connect(self._flags_changed)
+            self.flag_acts[f] = a
+        menu.addSeparator()
+        menu.addAction(t("keys.duplicate")).triggered.connect(lambda: self.duplicated.emit(self))
+        self.more.setMenu(menu)
+        lay.addWidget(self.more)
         self.rm = QtWidgets.QToolButton()
         self.rm.setIcon(draw_icon("close", theme.MUTED, 16))
         self.rm.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -152,6 +193,13 @@ class BindRow(QtWidgets.QFrame):
         self.rm.clicked.connect(lambda: self.removed.emit(self))
         lay.addWidget(self.rm)
         self._fill_arg(b["arg"])
+        self._flags_changed()
+
+    def _flags_changed(self, *_):
+        on = [f for f, a in self.flag_acts.items() if a.isChecked()]
+        self.more.setIcon(draw_icon("dots", theme.THEMES["blue"] if on else theme.MUTED, 16))
+        self.more.setToolTip(t("keys.flags") + (": " + ", ".join(t("flag." + f) for f in on) if on else ""))
+        self.changed.emit()
 
     def _captured(self, mods, _key):
         if mods:
@@ -163,22 +211,21 @@ class BindRow(QtWidgets.QFrame):
 
     def _fill_arg(self, value: str):
         a = self.action.currentData()
+        kind = model.ACTIONS[a]
         self.arg.blockSignals(True)
         self.arg.clear()
-        need = model.ACTIONS[a]
-        self.arg.setVisible(need)
-        if a == "focus":
+        self.arg.setVisible(kind is not None)
+        if kind == "dir":
             self.arg.setEditable(False)
             for d in model.DIRECTIONS:
                 self.arg.addItem(t("dir." + d), d)
-            i = self.arg.findData(value)
-            self.arg.setCurrentIndex(max(0, i))
-        elif need:
+            self.arg.setCurrentIndex(max(0, self.arg.findData(value)))
+        elif kind:
             self.arg.setEditable(True)
-            items = model.EXEC_SUGGEST if a == "exec" else [str(i) for i in range(1, 11)] + ["special:magic"]
+            items = list(model.EXEC_SUGGEST) if kind == "cmd" else [str(i) for i in range(1, 11)]
             for it in items:
                 self.arg.addItem(it, it)
-            self.arg.setEditText(value or (items[0] if a != "exec" else ""))
+            self.arg.setEditText(value or ("" if kind == "cmd" else "1"))
         self.arg.blockSignals(False)
 
     def _action_changed(self):
@@ -187,14 +234,19 @@ class BindRow(QtWidgets.QFrame):
 
     def value(self) -> dict:
         a = self.action.currentData()
-        if a == "focus":
+        kind = model.ACTIONS[a]
+        if kind == "dir":
             arg = self.arg.currentData() or ""
-        elif model.ACTIONS[a]:
+        elif kind:
             arg = self.arg.currentText().strip()
         else:
             arg = ""
         return {"mods": [m for m, b in self.mods.items() if b.isChecked()], "key": self.keybtn.key,
-                "action": a, "arg": arg}
+                "action": a, "arg": arg, "flags": [f for f, x in self.flag_acts.items() if x.isChecked()]}
+
+    def text(self) -> str:
+        v = self.value()
+        return " ".join([model.combo_text(v), t("act." + v["action"]), v["arg"]]).lower()
 
     def set_warning(self, text: str | None):
         self.warn.setVisible(bool(text))
@@ -204,6 +256,7 @@ class BindRow(QtWidgets.QFrame):
 class BindEditor(QtWidgets.QWidget):
     changed = Signal()
     fix_requested = Signal()
+    import_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -211,15 +264,25 @@ class BindEditor(QtWidgets.QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(10)
         top = QtWidgets.QHBoxLayout()
+        top.setSpacing(8)
         self.btn_add = QtWidgets.QPushButton()
         self.btn_add.setObjectName("Primary")
-        self.btn_defaults = QtWidgets.QPushButton()
+        self.btn_tpl = QtWidgets.QPushButton()
+        self.tpl_menu = QtWidgets.QMenu(self.btn_tpl)
+        self.btn_tpl.setMenu(self.tpl_menu)
+        self.btn_import = QtWidgets.QPushButton()
         self.btn_fix = QtWidgets.QPushButton()
         self.btn_fix.setObjectName("Danger")
-        for b in (self.btn_add, self.btn_defaults, self.btn_fix):
+        for b in (self.btn_add, self.btn_tpl, self.btn_import, self.btn_fix):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             top.addWidget(b)
         top.addStretch()
+        self.search = QtWidgets.QLineEdit()
+        self.search.setObjectName("Search")
+        self.search.setFixedWidth(200)
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+        top.addWidget(self.search)
         self.count = QtWidgets.QLabel()
         self.count.setObjectName("RowLabel")
         top.addWidget(self.count)
@@ -229,7 +292,7 @@ class BindEditor(QtWidgets.QWidget):
         lay.addLayout(self.rows_lay)
         self.rows: list[BindRow] = []
         self.btn_add.clicked.connect(self.add_empty)
-        self.btn_defaults.clicked.connect(lambda: (self.load(model.default_binds() + self.read()), self.changed.emit()))
+        self.btn_import.clicked.connect(self.import_requested.emit)
         self.btn_fix.clicked.connect(self.fix_requested.emit)
         self.btn_fix.hide()
 
@@ -246,17 +309,37 @@ class BindEditor(QtWidgets.QWidget):
                 continue
             seen.add(c)
             self._add_row(b)
+        self._filter()
 
-    def _add_row(self, b: dict) -> BindRow:
+    def merge(self, binds: list):
+        """Neue Kürzel anhängen; schon vorhandene Tastenkombinationen bleiben unverändert."""
+        self.load(self.read() + binds)
+        self.changed.emit()
+
+    def _add_row(self, b: dict, after: BindRow | None = None) -> BindRow:
         r = BindRow(b)
         r.changed.connect(self.changed.emit)
         r.removed.connect(self._remove)
-        self.rows_lay.addWidget(r)
-        self.rows.append(r)
+        r.duplicated.connect(self._duplicate)
+        if after is not None:
+            i = self.rows.index(after) + 1
+            self.rows_lay.insertWidget(i, r)
+            self.rows.insert(i, r)
+        else:
+            self.rows_lay.addWidget(r)
+            self.rows.append(r)
         return r
 
     def add_empty(self):
-        r = self._add_row({"mods": ["SUPER"], "key": "", "action": "exec", "arg": ""})
+        self.search.clear()
+        r = self._add_row({"mods": ["SUPER"], "key": "", "action": "exec", "arg": "", "flags": []})
+        r.keybtn.start()
+        self.changed.emit()
+
+    def _duplicate(self, row):
+        v = row.value()
+        v["key"] = ""
+        r = self._add_row(v, after=row)
         r.keybtn.start()
         self.changed.emit()
 
@@ -266,6 +349,11 @@ class BindEditor(QtWidgets.QWidget):
         row.setParent(None)
         row.deleteLater()
         self.changed.emit()
+
+    def _filter(self, *_):
+        q = self.search.text().strip().lower()
+        for r in self.rows:
+            r.setVisible(not q or all(w in r.text() for w in q.split()))
 
     def read(self) -> list:
         return [r.value() for r in self.rows]
@@ -292,8 +380,17 @@ class BindEditor(QtWidgets.QWidget):
 
     def retranslate(self):
         self.btn_add.setText(t("keys.add"))
-        self.btn_defaults.setText(t("keys.defaults"))
+        self.btn_tpl.setText(t("keys.templates"))
+        self.btn_import.setText(t("keys.import"))
+        self.btn_import.setToolTip(t("tip.keys.import"))
         self.btn_fix.setText(t("keys.fix"))
         self.btn_fix.setToolTip(t("tip.keys.fix"))
-        self.btn_defaults.setToolTip(t("tip.keys.defaults"))
+        self.search.setPlaceholderText(t("search"))
+        self.tpl_menu.clear()
+        for name in model.TEMPLATES:
+            self.tpl_menu.addAction(t("tpl." + name)).triggered.connect(
+                lambda _=False, n=name: self.merge([dict(b) for b in model.TEMPLATES[n]]))
+        self.tpl_menu.addSeparator()
+        self.tpl_menu.addAction(t("tpl.all")).triggered.connect(lambda: self.merge(
+            [dict(b) for n in model.TEMPLATES for b in model.TEMPLATES[n]]))
         self.load(self.read())
