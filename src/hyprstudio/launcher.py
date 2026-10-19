@@ -1,0 +1,356 @@
+"""App-Launcher Rofi, Wofi und Fuzzel: ein gemeinsamer Zustand, drei Config-Formate. Ohne Qt."""
+
+import json
+from pathlib import Path
+
+from .model import MARK, _backup_foreign, muted_color, norm, rgba_css, undo_file
+
+APPS = ("rofi", "wofi", "fuzzel")
+COMMANDS = {"rofi": "rofi -show drun", "wofi": "wofi --show drun", "fuzzel": "fuzzel"}
+
+LAUNCHER_DEFAULT = {
+    "app": "rofi",
+    # Aussehen (Presets)
+    "bg": "#0e131aee", "fg": "#e6edf5ff", "accent": "#3d8bfdff", "sel": "#3d8bfd33", "sel_fg": "#ffffffff",
+    "input_bg": "#1b2430ff", "border": "#253142ff", "border_width": 2, "radius": 14, "el_radius": 8,
+    "width": 620, "lines": 8, "columns": 1, "padding": 16, "spacing": 4, "position": "center", "offset": 0,
+    "grid": False, "icon_size": 24,
+    # Verhalten
+    "font": "JetBrainsMono Nerd Font", "font_size": 12, "icons": True, "icon_theme": "",
+    "show_prompt": True, "prompt": "Apps", "placeholder": "Suchen …", "mode": "drun", "matching": "fuzzy",
+    "insensitive": True, "terminal": "kitty", "show_scroll": False,
+}
+LOOK = ("bg", "fg", "accent", "sel", "sel_fg", "input_bg", "border", "border_width", "radius", "el_radius",
+        "width", "lines", "columns", "padding", "spacing", "position", "offset", "grid", "icon_size")
+
+PRESETS = {
+    "spotlight": {},
+    "grid": {"grid": True, "columns": 5, "lines": 3, "icon_size": 48, "width": 760, "radius": 18, "el_radius": 12},
+    "compact": {"position": "top", "offset": 60, "width": 480, "lines": 6, "radius": 10, "padding": 10,
+                "icon_size": 20, "border_width": 1},
+    "glass": {"bg": "#ffffff1a", "input_bg": "#ffffff14", "border": "#ffffff33", "sel": "#ffffff26",
+              "radius": 20, "border_width": 1},
+    "tokyo": {"bg": "#1a1b26f0", "fg": "#c0caf5ff", "accent": "#7aa2f7ff", "sel": "#7aa2f733",
+              "input_bg": "#24283bff", "border": "#7aa2f7ff"},
+    "catppuccin": {"bg": "#1e1e2ef0", "fg": "#cdd6f4ff", "accent": "#cba6f7ff", "sel": "#cba6f733",
+                   "input_bg": "#313244ff", "border": "#cba6f7ff", "radius": 16},
+    "nord": {"bg": "#2e3440f0", "fg": "#eceff4ff", "accent": "#88c0d0ff", "sel": "#88c0d033",
+             "input_bg": "#3b4252ff", "border": "#4c566aff", "radius": 8},
+    "gruvbox": {"bg": "#282828f0", "fg": "#ebdbb2ff", "accent": "#fabd2fff", "sel": "#fabd2f33",
+                "input_bg": "#3c3836ff", "border": "#fabd2fff", "radius": 4, "el_radius": 2},
+}
+
+
+def _copy(d):
+    return json.loads(json.dumps(d))
+
+
+def state(saved: dict | None) -> dict:
+    s = _copy(LAUNCHER_DEFAULT)
+    for k, v in (saved or {}).items():
+        if k in s and type(v) is type(s[k]):
+            s[k] = v
+    if s["app"] not in APPS:
+        s["app"] = "rofi"
+    return s
+
+
+def preset(name: str, base: dict | None = None) -> dict:
+    s = state(base)
+    for k in LOOK:
+        s[k] = _copy(LAUNCHER_DEFAULT[k])
+    s.update(_copy(PRESETS.get(name, {})))
+    return s
+
+
+def muted(s: dict) -> str:
+    return muted_color(s["fg"])
+
+
+# ---------- Rofi ----------
+
+ROFI_POS = {"center": ("center", "center"), "top": ("north", "north"), "bottom": ("south", "south")}
+
+
+def _hex(c: str) -> str:
+    return norm(c)
+
+
+def rofi_config(s: dict, theme_path: str) -> str:
+    modi = {"drun": "drun,run,window", "run": "run,drun,window"}[s["mode"]]
+    return f"""/* {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben */
+configuration {{
+    modi: "{modi}";
+    show-icons: {"true" if s["icons"] else "false"};
+{f'    icon-theme: "{s["icon_theme"]}";' + chr(10) if s["icon_theme"] else ""}    font: "{s["font"]} {s["font_size"]}";
+    terminal: "{s["terminal"]}";
+    display-drun: "{s["prompt"]}";
+    display-run: "{s["prompt"]}";
+    display-window: "{s["prompt"]}";
+    drun-display-format: "{{name}}";
+    matching: "{s["matching"]}";
+    case-sensitive: {"false" if s["insensitive"] else "true"};
+    sort: true;
+    hover-select: true;
+}}
+
+@theme "{theme_path}"
+"""
+
+
+def rofi_theme(s: dict) -> str:
+    loc, anchor = ROFI_POS[s["position"]]
+    off = {"center": 0, "top": s["offset"], "bottom": -s["offset"]}[s["position"]]
+    grid = s["grid"]
+    cols = s["columns"] if grid else max(1, s["columns"])
+    prompt = "prompt, " if s["show_prompt"] else ""
+    return f"""/* {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben */
+* {{
+    bg:      {_hex(s["bg"])};
+    fg:      {_hex(s["fg"])};
+    accent:  {_hex(s["accent"])};
+    sel:     {_hex(s["sel"])};
+    sel-fg:  {_hex(s["sel_fg"])};
+    input:   {_hex(s["input_bg"])};
+    bordercol: {_hex(s["border"])};
+    muted:   {_hex(muted(s))};
+    background-color: transparent;
+    text-color: @fg;
+}}
+
+window {{
+    location: {loc};
+    anchor: {anchor};
+    y-offset: {off}px;
+    width: {s["width"]}px;
+    background-color: @bg;
+    border: {s["border_width"]}px solid;
+    border-color: @bordercol;
+    border-radius: {s["radius"]}px;
+    padding: {s["padding"]}px;
+}}
+
+mainbox {{
+    spacing: 12px;
+    children: [ inputbar, listview ];
+}}
+
+inputbar {{
+    children: [ {prompt}entry ];
+    spacing: 10px;
+    padding: 10px 14px;
+    border-radius: {max(0, s["radius"] - 4)}px;
+    background-color: @input;
+}}
+
+prompt {{
+    text-color: @accent;
+}}
+
+entry {{
+    placeholder: "{s["placeholder"]}";
+    placeholder-color: @muted;
+    cursor: text;
+}}
+
+listview {{
+    lines: {s["lines"]};
+    columns: {cols};
+    spacing: {s["spacing"]}px;
+    fixed-height: true;
+    scrollbar: {"true" if s["show_scroll"] else "false"};
+}}
+
+scrollbar {{
+    handle-color: @accent;
+    handle-width: 4px;
+    border-radius: 4px;
+}}
+
+element {{
+    orientation: {"vertical" if grid else "horizontal"};
+    padding: {"12px 8px" if grid else "8px 10px"};
+    spacing: {"8px" if grid else "12px"};
+    border-radius: {s["el_radius"]}px;
+}}
+
+element selected.normal, element selected.active {{
+    background-color: @sel;
+    text-color: @sel-fg;
+}}
+
+element-icon {{
+    size: {s["icon_size"]}px;
+    {"horizontal-align: 0.5;" if grid else ""}
+}}
+
+element-text {{
+    vertical-align: 0.5;
+    {"horizontal-align: 0.5;" if grid else ""}
+    text-color: inherit;
+}}
+"""
+
+
+# ---------- Wofi ----------
+
+WOFI_POS = {"center": "center", "top": "top", "bottom": "bottom"}
+
+
+def wofi_config(s: dict) -> str:
+    height = s["lines"] * (s["icon_size"] + 24 if s["grid"] else max(s["icon_size"], s["font_size"] * 2) + 18) \
+        + 2 * s["padding"] + 60
+    lines = [
+        f"# {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben",
+        f"show={s['mode']}",
+        f"width={s['width']}",
+        f"height={height}",
+        f"location={WOFI_POS[s['position']]}",
+        f"yoffset={s['offset'] if s['position'] == 'top' else -s['offset'] if s['position'] == 'bottom' else 0}",
+        f"prompt={s['placeholder']}",
+        f"allow_images={'true' if s['icons'] else 'false'}",
+        f"image_size={s['icon_size']}",
+        f"insensitive={'true' if s['insensitive'] else 'false'}",
+        f"matching={'fuzzy' if s['matching'] == 'fuzzy' else 'contains'}",
+        f"columns={s['columns'] if s['grid'] else max(1, s['columns'])}",
+        f"hide_scroll={'false' if s['show_scroll'] else 'true'}",
+        "no_actions=true",
+        f"term={s['terminal']}",
+        "gtk_dark=true",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def wofi_css(s: dict) -> str:
+    grid = s["grid"]
+    return f"""/* {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben */
+* {{
+    font-family: "{s["font"]}", sans-serif;
+    font-size: {s["font_size"] + 2}px;
+}}
+
+window {{
+    margin: 0;
+    border: {s["border_width"]}px solid {rgba_css(s["border"])};
+    border-radius: {s["radius"]}px;
+    background-color: {rgba_css(s["bg"])};
+}}
+
+#outer-box {{
+    padding: {s["padding"]}px;
+}}
+
+#input {{
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: {max(0, s["radius"] - 4)}px;
+    background-color: {rgba_css(s["input_bg"])};
+    color: {rgba_css(s["fg"])};
+    box-shadow: none;
+    outline: none;
+}}
+
+#inner-box, #scroll {{
+    background: transparent;
+}}
+
+#entry {{
+    padding: {"12px 8px" if grid else "8px 10px"};
+    margin: {s["spacing"] // 2}px 0;
+    border-radius: {s["el_radius"]}px;
+}}
+
+#entry:selected {{
+    background-color: {rgba_css(s["sel"])};
+    outline: none;
+}}
+
+#text {{
+    color: {rgba_css(s["fg"])};
+    margin-left: 10px;
+}}
+
+#entry:selected #text {{
+    color: {rgba_css(s["sel_fg"])};
+}}
+"""
+
+
+# ---------- Fuzzel ----------
+
+FUZZEL_ANCHOR = {"center": "center", "top": "top", "bottom": "bottom"}
+
+
+def _fz(c: str) -> str:
+    return norm(c)[1:]
+
+
+def fuzzel_ini(s: dict) -> str:
+    chars = max(20, round(s["width"] / (s["font_size"] * 0.75)))
+    main = [
+        "[main]",
+        f"font={s['font']}:size={s['font_size']}",
+        f'prompt="{s["prompt"] + " " if s["show_prompt"] else ""}"',
+        f"placeholder={s['placeholder']}",
+        f"icons-enabled={'yes' if s['icons'] else 'no'}",
+    ]
+    if s["icon_theme"]:
+        main.append(f"icon-theme={s['icon_theme']}")
+    main += [
+        f"terminal={s['terminal']} -e",
+        f"lines={s['lines'] * (s['columns'] if s['grid'] else 1)}",
+        f"width={chars}",
+        f"horizontal-pad={s['padding'] + 4}",
+        f"vertical-pad={s['padding']}",
+        f"inner-pad={s['spacing'] + 4}",
+        f"anchor={FUZZEL_ANCHOR[s['position']]}",
+        f"y-margin={s['offset'] if s['position'] != 'center' else 0}",
+        "layer=overlay",
+        "",
+        "[colors]",
+        f"background={_fz(s['bg'])}",
+        f"text={_fz(s['fg'])}",
+        f"prompt={_fz(s['accent'])}",
+        f"input={_fz(s['fg'])}",
+        f"match={_fz(s['accent'])}",
+        f"selection={_fz(s['sel'])}",
+        f"selection-text={_fz(s['sel_fg'])}",
+        f"selection-match={_fz(s['sel_fg'])}",
+        f"border={_fz(s['border'])}",
+        "",
+        "[border]",
+        f"width={s['border_width']}",
+        f"radius={s['radius']}",
+    ]
+    return f"# {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben\n" + "\n".join(main) + "\n"
+
+
+# ---------- Schreiben ----------
+
+def files(s: dict, cfg_home: Path, home_for_theme: Path | None = None) -> list:
+    """[(pfad, inhalt)] für den gewählten Launcher."""
+    app = s["app"]
+    if app == "rofi":
+        d = cfg_home / "rofi"
+        theme = d / "hyprstudio.rasi"
+        return [(d / "config.rasi", rofi_config(s, str(theme).replace("\\", "/"))), (theme, rofi_theme(s))]
+    if app == "wofi":
+        d = cfg_home / "wofi"
+        return [(d / "config", wofi_config(s)), (d / "style.css", wofi_css(s))]
+    return [(cfg_home / "fuzzel" / "fuzzel.ini", fuzzel_ini(s))]
+
+
+def apply(s: dict, cfg_home: Path, log) -> tuple[bool, str]:
+    for target, data in files(s, cfg_home):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        bak = _backup_foreign(target)
+        if bak:
+            log(f"Sicherung: {bak}")
+        target.write_text(data, encoding="utf-8")
+        log(f"→ {target}")
+    return True, ""
+
+
+def undo(s: dict, cfg_home: Path) -> bool:
+    return any([undo_file(p) for p, _ in files(s, cfg_home)])

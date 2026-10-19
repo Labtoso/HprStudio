@@ -283,7 +283,7 @@ class Card(QtWidgets.QFrame):
         self.rows.append((lb, refresh))
         return lb
 
-    def slider(self, key, lo, hi, step=1.0, fmt="{:.0f}", tip=None):
+    def slider(self, key, lo, hi, step=1.0, fmt="{:.0f}", tip=None, label_key=None):
         sl = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         sl.setRange(int(round(lo / step)), int(round(hi / step)))
         sl.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -305,13 +305,13 @@ class Card(QtWidgets.QFrame):
             sl.blockSignals(False)
             val.setText(fmt.format(s[key]))
         sl.valueChanged.connect(changed)
-        self._add(key, sl, val, tip, refresh)
+        self._add(key, sl, val, tip, refresh, label_key=label_key)
         return sl
 
-    def toggle(self, key, tip=None):
+    def toggle(self, key, tip=None, label_key=None):
         sw = Switch()
         sw.toggled.connect(lambda on: self.page.set(key, bool(on)))
-        self._add(key, sw, None, tip, lambda s: sw.set_now(bool(s[key])))
+        self._add(key, sw, None, tip, lambda s: sw.set_now(bool(s[key])), label_key=label_key)
         self.page.switches.append(sw)
         return sw
 
@@ -321,14 +321,14 @@ class Card(QtWidgets.QFrame):
         self._add(key, cb, None, tip, lambda s: cb.set_color(s[key]), label_key=label_key)
         return cb
 
-    def choice(self, key, options, prefix, tip=None):
+    def choice(self, key, options, prefix, tip=None, label_key=None):
         seg = Segmented(options, prefix=prefix)
         seg.changed.connect(lambda v: self.page.set(key, int(v) if isinstance(self.page.state[key], int) else v))
-        self._add(key, seg, None, tip, lambda s: seg.select(str(s[key])))
+        self._add(key, seg, None, tip, lambda s: seg.select(str(s[key])), label_key=label_key)
         self.page.segs.append(seg)
         return seg
 
-    def text(self, key, tip=None, width=220):
+    def text(self, key, tip=None, width=220, label_key=None):
         le = QtWidgets.QLineEdit()
         le.setFixedWidth(width)
         le.textEdited.connect(lambda v: self.page.set(key, v.strip()))
@@ -336,7 +336,7 @@ class Card(QtWidgets.QFrame):
         def refresh(s):
             if le.text().strip() != s[key]:
                 le.setText(s[key])
-        self._add(key, le, None, tip, refresh)
+        self._add(key, le, None, tip, refresh, label_key=label_key)
         return le
 
     def lines(self, key, tip=None):
@@ -385,15 +385,25 @@ class PresetCard(QtWidgets.QFrame):
         lay.setSpacing(8)
         self.pic = QtWidgets.QLabel()
         self.pic.setFixedSize(196, 110)
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
         self.name = QtWidgets.QLabel()
         self.name.setStyleSheet("font-weight:600; background:transparent; padding-left:4px;")
+        self.chip = QtWidgets.QLabel()
+        self.chip.setObjectName("ChipOk")
+        self.chip.hide()
+        row.addWidget(self.name)
+        row.addStretch()
+        row.addWidget(self.chip)
         lay.addWidget(self.pic)
-        lay.addWidget(self.name)
+        lay.addLayout(row)
 
     def set_pixmap(self, pm):
         self.pic.setPixmap(pm)
 
-    def refresh(self, selected: bool, accent: str):
+    def refresh(self, selected: bool, accent: str, applied: bool = False):
+        self.chip.setText(t("applied"))
+        self.chip.setVisible(applied)
         border = accent if selected else theme.BORDER
         bg = theme.SURFACE2 if selected else theme.SURFACE
         self.setStyleSheet(f"#Preset {{ background:{bg}; border:{2 if selected else 1}px solid {border};"

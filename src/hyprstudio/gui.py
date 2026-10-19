@@ -6,9 +6,12 @@ import sys
 import hyprstudio
 from . import model, theme
 from .i18n import t, set_lang
-from .pages import HyprPage, WaybarPage
+from .pages import HyprPage, LauncherPage, WaybarPage
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .widgets import Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
+
+
+TABS = ("hypr", "waybar", "launcher")
 
 
 class MainWindow(QtWidgets.QWidget):
@@ -18,7 +21,7 @@ class MainWindow(QtWidgets.QWidget):
         set_lang(self.cfg.get("lang", "en"))
         if self.cfg.get("theme") not in theme.THEMES:
             self.cfg["theme"] = "blue"
-        if self.cfg.get("tab") not in ("hypr", "waybar"):
+        if self.cfg.get("tab") not in TABS:
             self.cfg["tab"] = "hypr"
         self._save = QtCore.QTimer(self)
         self._save.setSingleShot(True)
@@ -57,7 +60,7 @@ class MainWindow(QtWidgets.QWidget):
         left.addWidget(self.gear)
         left.addWidget(self.title)
         left.addStretch()
-        self.tabs = Segmented(("hypr", "waybar"), prefix="tab.")
+        self.tabs = Segmented(TABS, prefix="tab.")
         self.tabs.setObjectName("TabBox")
         self.tabs.changed.connect(self.set_tab)
         right = QtWidgets.QHBoxLayout()
@@ -77,9 +80,10 @@ class MainWindow(QtWidgets.QWidget):
 
         self.hypr_page = HyprPage(self)
         self.waybar_page = WaybarPage(self)
+        self.launcher_page = LauncherPage(self)
         self.stack = QtWidgets.QStackedWidget()
-        self.stack.addWidget(self.hypr_page)
-        self.stack.addWidget(self.waybar_page)
+        for pg in self.all_pages():
+            self.stack.addWidget(pg)
         cl.addWidget(self.stack, 1)
 
         foot = QtWidgets.QHBoxLayout()
@@ -124,13 +128,17 @@ class MainWindow(QtWidgets.QWidget):
         self.apply_theme()
         self.retranslate()
         self.update_previews()
-        for pg in (self.hypr_page, self.waybar_page):
+        for pg in self.all_pages():
             pg.render_presets(force=True)
         self.set_tab(self.cfg["tab"])
         if model.DRY:
             self.set_status(t("testmode"))
 
     # ----- für die Seiten -----
+    def all_pages(self):
+        return [pg for pg in (getattr(self, "hypr_page", None), getattr(self, "waybar_page", None),
+                              getattr(self, "launcher_page", None)) if pg is not None]
+
     def accent(self) -> str:
         return theme.THEMES[self.cfg["theme"]]
 
@@ -140,10 +148,9 @@ class MainWindow(QtWidgets.QWidget):
     def update_previews(self):
         hs, ws = self.hypr_page.state, getattr(self, "waybar_page", None)
         ws = ws.state if ws else model.waybar_state(None)
-        for pg in (self.hypr_page, getattr(self, "waybar_page", None)):
-            if pg:
-                pg.preview.set_states(hs, ws)
-                pg._presets_dirty = True
+        for pg in self.all_pages():
+            pg.preview.set_states(hs, ws)
+            pg._presets_dirty = True
 
     def set_status(self, text: str):
         self.status.setText(text)
@@ -189,7 +196,7 @@ class MainWindow(QtWidgets.QWidget):
         self.cfg["tab"] = tab
         self.save_later()
         self.tabs.select(tab)
-        page = self.hypr_page if tab == "hypr" else self.waybar_page
+        page = {"hypr": self.hypr_page, "waybar": self.waybar_page, "launcher": self.launcher_page}[tab]
         self.stack.setCurrentWidget(page)
         if self.cfg.get(f"{tab}_section") == "presets":
             page.render_presets()
@@ -248,7 +255,7 @@ class MainWindow(QtWidgets.QWidget):
         self.gear.setIcon(draw_icon("gear", theme.TEXT, 22))
         self.btn_min.setIcon(draw_icon("min", theme.MUTED, 18))
         self.btn_close.setIcon(draw_icon("close", theme.MUTED, 18))
-        for pg in (self.hypr_page, self.waybar_page):
+        for pg in self.all_pages():
             pg.apply_theme(self.accent())
 
     def retranslate(self):
@@ -257,8 +264,8 @@ class MainWindow(QtWidgets.QWidget):
         self.btn_close.setToolTip(t("close"))
         self.btn_log.setText(t("log"))
         self.tabs.retranslate()
-        self.hypr_page.retranslate()
-        self.waybar_page.retranslate()
+        for pg in self.all_pages():
+            pg.retranslate()
         self.set_status(t("testmode") if model.DRY else t("ready"))
 
 
@@ -289,7 +296,7 @@ def _shots(w, app, shot, steps):
         if st:
             tab, sec = st.split(":")
             w.set_tab(tab)
-            (w.hypr_page if tab == "hypr" else w.waybar_page).show_section(sec)
+            {"hypr": w.hypr_page, "waybar": w.waybar_page, "launcher": w.launcher_page}[tab].show_section(sec)
         app.processEvents()
         QtCore.QThread.msleep(50)
         app.processEvents()

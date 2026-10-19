@@ -1,6 +1,8 @@
 """Seiten Hyprland und Waybar: Seitenleiste links, oben Live-Vorschau, darunter Presets bzw. Regler-Karten."""
 
-from . import model, theme
+import json
+
+from . import launcher, model, theme
 from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
@@ -14,6 +16,7 @@ class EditorPage(QtWidgets.QWidget):
     NO_PREVIEW: tuple = ()
     HAS_PLAY = True
     KIND = ""
+    LOOK_KEYS: tuple = ()
 
     def __init__(self, win):
         super().__init__()
@@ -63,6 +66,8 @@ class EditorPage(QtWidgets.QWidget):
         self.page_title = QtWidgets.QLabel()
         self.page_title.setObjectName("PageTitle")
         acts.addWidget(self.page_title)
+        self.applied = QtWidgets.QLabel()
+        acts.addWidget(self.applied, 0, Qt.AlignmentFlag.AlignLeft)
         acts.addStretch()
         self.btn_play = QtWidgets.QPushButton()
         self.btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -124,7 +129,8 @@ class EditorPage(QtWidgets.QWidget):
         if self.state.get(key) == value:
             return
         self.state[key] = value
-        self.win.cfg[f"{self.KIND}_preset"] = ""
+        if key in self.LOOK_KEYS:  # nur Aussehens-Änderungen lösen das Preset
+            self.win.cfg[f"{self.KIND}_preset"] = ""
         self.changed()
 
     def changed(self):
@@ -133,6 +139,41 @@ class EditorPage(QtWidgets.QWidget):
         self.win.update_previews()
         self._presets_dirty = True
         self.refresh_presets_selection()
+        self.update_applied()
+
+    # ----- „Angewendet“-Anzeige -----
+    def _sig(self) -> str:
+        return json.dumps(self.state, sort_keys=True)
+
+    def is_applied(self) -> bool:
+        return self.win.cfg.get(f"{self.KIND}_applied_sig") == self._sig()
+
+    def update_applied(self):
+        ok = self.is_applied()
+        self.applied.setObjectName("ChipOk" if ok else "ChipWarn")
+        self.applied.setText(t("applied") if ok else t("not_applied"))
+        self.applied.style().unpolish(self.applied)
+        self.applied.style().polish(self.applied)
+        self.applied.setFixedSize(self.applied.sizeHint())
+        self.refresh_presets_selection()
+
+    def apply(self):
+        if not self.do_apply():
+            return
+        self.win.cfg[f"{self.KIND}_applied_sig"] = self._sig()
+        self.win.cfg[f"{self.KIND}_applied_preset"] = self.win.cfg.get(f"{self.KIND}_preset", "")
+        self.win.save_later()
+        name = self.win.cfg[f"{self.KIND}_applied_preset"]
+        pre = self.presets.get(name)
+        self.win.set_status(t("applied") + (f": {t(pre.property('tkey'))}" if pre else ""))
+        self.update_applied()
+
+    def after_undo(self, ok: bool):
+        self.win.set_status(t("undone") if ok else t("nothing"))
+        if ok:
+            self.win.cfg[f"{self.KIND}_applied_sig"] = ""
+            self.win.cfg[f"{self.KIND}_applied_preset"] = ""
+            self.update_applied()
 
     def refresh_controls(self):
         for c in self.cards:
@@ -159,21 +200,25 @@ class EditorPage(QtWidgets.QWidget):
             return
         self._presets_dirty = False
         for name, pc in self.presets.items():
-            hs, ws = self.preset_states(name)
-            pc.set_pixmap(render_pixmap(hs, ws, 196, 110, 9))
+            pc.set_pixmap(self.preset_pixmap(name))
         self.refresh_presets_selection()
 
     def refresh_presets_selection(self):
         sel = self.win.cfg.get(f"{self.KIND}_preset", "")
+        applied = self.win.cfg.get(f"{self.KIND}_applied_preset", "") if self.is_applied() else ""
         for name, pc in self.presets.items():
-            pc.refresh(name == sel, self.win.accent())
+            pc.refresh(name == sel, self.win.accent(), name == applied)
+
+    def preset_pixmap(self, name):
+        hs, ws = self.preset_states(name)
+        return render_pixmap(hs, ws, 196, 110, 9)
 
     def use_preset(self, name):
         self.state = self.preset_value(name)
         self.refresh_controls()
         self.changed()
         self.win.cfg[f"{self.KIND}_preset"] = name
-        self.refresh_presets_selection()
+        self.update_applied()
 
     def apply_theme(self, accent):
         for sw in self.switches:
@@ -197,13 +242,14 @@ class EditorPage(QtWidgets.QWidget):
         self.btn_undo.setToolTip(t("tip.undo"))
         self.btn_apply.setText(t("apply"))
         self.update_info()
+        self.update_applied()
 
     # von Unterklassen
     def load_state(self) -> dict: ...
     def build_section(self, key, layout): ...
     def preset_states(self, name): ...
     def preset_value(self, name) -> dict: ...
-    def apply(self): ...
+    def do_apply(self) -> bool: ...
     def undo(self): ...
     def update_info(self): ...
 
@@ -211,6 +257,7 @@ class EditorPage(QtWidgets.QWidget):
 class HyprPage(EditorPage):
     SECTIONS = ("presets", "windows", "colors", "effects", "anim", "input", "keys", "system")
     NO_PREVIEW = ("input", "keys", "system")
+    LOOK_KEYS = model.LOOK_KEYS
     KIND = "hypr"
 
     def load_state(self):
@@ -385,16 +432,16 @@ class HyprPage(EditorPage):
     def hdir(self):
         return model.config_home() / "hypr"
 
-    def apply(self):
+    def do_apply(self):
         ok, info = model.apply_hypr(self.state, self.hdir(), self.win.log)
         self.win.report(ok, info)
         self.update_info()
         self._mark()
+        return ok
 
     def undo(self):
         self.win.log("")
-        ok = model.undo_hypr(self.hdir(), self.win.log)
-        self.win.set_status(t("undone") if ok else t("nothing"))
+        self.after_undo(model.undo_hypr(self.hdir(), self.win.log))
 
     def update_info(self):
         fmt = model.hypr_format(self.hdir())
@@ -404,6 +451,7 @@ class HyprPage(EditorPage):
 class WaybarPage(EditorPage):
     SECTIONS = ("presets", "bar", "modules", "options", "style")
     HAS_PLAY = False
+    LOOK_KEYS = model.WB_LOOK
     KIND = "waybar"
 
     def __init__(self, win):
@@ -499,17 +547,17 @@ class WaybarPage(EditorPage):
     def wdir(self):
         return model.config_home() / "waybar"
 
-    def apply(self):
+    def do_apply(self):
         if not model.which("waybar"):
             self.win.report(False, "nowaybar")
-            return
+            return False
         ok, info = model.apply_waybar(self.state, self.wdir(), self.win.log)
         self.win.report(ok, info)
+        return ok
 
     def undo(self):
         self.win.log("")
-        ok = model.undo_waybar(self.wdir(), self.win.log)
-        self.win.set_status(t("undone") if ok else t("nothing"))
+        self.after_undo(model.undo_waybar(self.wdir(), self.win.log))
 
     def retranslate(self):
         super().retranslate()
@@ -520,3 +568,147 @@ class WaybarPage(EditorPage):
 
     def update_info(self):
         self.info.setText("Waybar · " + ("✓" if model.which("waybar") else t("fmt.none")))
+
+
+class LauncherPage(EditorPage):
+    SECTIONS = ("presets", "app", "window", "colors", "text")
+    HAS_PLAY = False
+    KIND = "launcher"
+    LOOK_KEYS = launcher.LOOK
+
+    def __init__(self, win):
+        super().__init__(win)
+        self.preview.ls = self.state
+
+    def load_state(self):
+        return launcher.state(self.win.cfg.get("launcher"))
+
+    def changed(self):
+        self.preview.ls = self.state
+        super().changed()
+
+    def build_section(self, key, lay):
+        if key == "presets":
+            self.preset_grid(lay, launcher.PRESETS, "lp.")
+        elif key == "app":
+            c = self.card(lay, "card.app")
+            c.choice("app", launcher.APPS, "app.")
+            self.app_info = QtWidgets.QLabel()
+            self.app_info.setObjectName("RowLabel")
+            c.layout().addWidget(self.app_info)
+            self.btn_use = QtWidgets.QPushButton()
+            self.btn_use.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_use.clicked.connect(self.use_everywhere)
+            c.layout().addWidget(self.btn_use, 0, Qt.AlignmentFlag.AlignLeft)
+            c = self.card(lay, "card.lmode")
+            c.choice("mode", ("drun", "run"), "lmode.")
+            c.choice("matching", ("fuzzy", "normal"), "match.")
+            c.toggle("insensitive")
+            c.text("terminal", width=200)
+        elif key == "window":
+            c = self.card(lay, "card.lsize")
+            c.slider("width", 300, 1200, 10, "{:.0f} px")
+            c.slider("lines", 3, 15)
+            c.toggle("grid", tip="tip.grid")
+            c.slider("columns", 1, 8, tip="tip.columns")
+            c.slider("icon_size", 16, 64, 2, "{:.0f} px")
+            c.slider("padding", 0, 40, label_key="pad")
+            c.slider("spacing", 0, 16, label_key="lspacing")
+            c = self.card(lay, "card.lpos")
+            c.choice("position", ("center", "top", "bottom"), "lpos.")
+            c.slider("offset", 0, 300, 5, "{:.0f} px")
+            c = self.card(lay, "card.lshape")
+            c.slider("border_width", 0, 6)
+            c.slider("radius", 0, 30)
+            c.slider("el_radius", 0, 20)
+        elif key == "colors":
+            c = self.card(lay, "card.colors")
+            c.color("bg")
+            c.color("input_bg")
+            c.color("fg")
+            c.color("accent")
+            c.color("sel")
+            c.color("sel_fg")
+            c.color("border")
+            self.btn_from = QtWidgets.QPushButton()
+            self.btn_from.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_from.clicked.connect(self.from_hypr)
+            c.layout().addWidget(self.btn_from, 0, Qt.AlignmentFlag.AlignLeft)
+        elif key == "text":
+            c = self.card(lay, "card.font")
+            c.text("font", width=260)
+            c.slider("font_size", 8, 24)
+            c = self.card(lay, "card.ltext")
+            c.toggle("show_prompt")
+            c.text("prompt", width=200)
+            c.text("placeholder", width=260)
+            c.toggle("icons", label_key="app_icons")
+            c.text("icon_theme", width=220, tip="tip.icon_theme")
+            c.toggle("show_scroll")
+
+    def set(self, key, value):
+        super().set(key, value)
+        if key == "app":
+            self.update_info()
+
+    def from_hypr(self):
+        hs = self.win.hypr_page.state
+        a = model.norm(hs["active1"])[:7]
+        self.state.update({"accent": a + "ff", "border": a + "ff", "sel": a + "33"})
+        self.win.cfg["launcher_preset"] = ""
+        self.refresh_controls()
+        self.changed()
+
+    def use_everywhere(self):
+        """Launcher-Befehl in Waybar und in Kürzeln übernehmen, die einen Launcher starten."""
+        cmd = launcher.COMMANDS[self.state["app"]]
+        wb = self.win.waybar_page
+        wb.state["launcher"] = cmd
+        wb.refresh_controls()
+        wb.changed()
+        hp = self.win.hypr_page
+        names = ("rofi", "wofi", "fuzzel", "hyprlauncher", "tofi", "anyrun", "walker")
+        n = 0
+        for b in hp.state["binds"]:
+            if b["action"] == "exec" and b["arg"].split(" ", 1)[0] in names and b["arg"] != cmd:
+                b["arg"] = cmd
+                n += 1
+        if n:
+            hp.refresh_controls()
+            hp.changed()
+        self.win.set_status(t("launcher.used", cmd=cmd, n=n))
+
+    def preset_pixmap(self, name):
+        return render_pixmap(self.win.hypr_page.state, self.win.waybar_page.state, 196, 110, 9,
+                             ls=launcher.preset(name, self.state))
+
+    def preset_value(self, name):
+        return launcher.preset(name, self.state)
+
+    def do_apply(self):
+        app = self.state["app"]
+        if not model.which(app):
+            self.win.log(t("launcher.missing", app=app))
+        ok, info = launcher.apply(self.state, model.config_home(), self.win.log)
+        self.win.report(ok, info)
+        return ok
+
+    def undo(self):
+        self.win.log("")
+        self.after_undo(launcher.undo(self.state, model.config_home()))
+
+    def retranslate(self):
+        super().retranslate()
+        if hasattr(self, "btn_use"):
+            self.btn_use.setText(t("launcher.use"))
+            self.btn_use.setToolTip(t("tip.launcher.use"))
+        if hasattr(self, "btn_from"):
+            self.btn_from.setText(t("from_hypr"))
+
+    def update_info(self):
+        app = self.state["app"]
+        ok = model.which(app)
+        self.info.setText(f"{app.capitalize()} · " + ("✓" if ok else t("fmt.none")))
+        if hasattr(self, "app_info"):
+            self.app_info.setText(t("launcher.cmd", cmd=launcher.COMMANDS[app]) +
+                                  ("" if ok else "  ·  " + t("launcher.missing", app=app)))

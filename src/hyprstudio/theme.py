@@ -77,6 +77,10 @@ def qss(accent: str) -> str:
     QPushButton#KeyBtn {{ background: {BG}; font-family: "JetBrains Mono", "Hack", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", monospace;
                           font-weight: 600; }}
     #Warn {{ background: transparent; border: 1px solid {DANGER}; border-radius: 11px; color: {DANGER}; font-weight: 700; }}
+    #ChipOk {{ background: transparent; border: 1px solid {OK}; border-radius: 9px; padding: 2px 9px;
+               color: {OK}; font-size: 9pt; font-weight: 600; }}
+    #ChipWarn {{ background: transparent; border: 1px solid #d29922; border-radius: 9px; padding: 2px 9px;
+                 color: #d29922; font-size: 9pt; font-weight: 600; }}
     #Status {{ color: {MUTED}; }}
     QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 12px; padding: 8px;
                       font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 9pt;

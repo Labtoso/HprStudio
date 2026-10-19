@@ -338,13 +338,26 @@ def paint_desktop(p: QtGui.QPainter, r: QtCore.QRectF, hs: dict, ws: dict | None
     p.restore()
 
 
-def render_pixmap(hs: dict, ws: dict | None, w: int, h: int, radius: float = 10.0) -> QtGui.QPixmap:
+def _overlay(p, r, ls, radius):
+    p.save()
+    clip = QtGui.QPainterPath()
+    clip.addRoundedRect(r, radius, radius)
+    p.setClipPath(clip)
+    p.fillRect(r, QtGui.QColor(0, 0, 0, 70))
+    paint_launcher(p, r, ls)
+    p.restore()
+
+
+def render_pixmap(hs: dict, ws: dict | None, w: int, h: int, radius: float = 10.0, ls: dict | None = None) -> QtGui.QPixmap:
     dpr = 2
     pm = QtGui.QPixmap(w * dpr, h * dpr)
     pm.setDevicePixelRatio(dpr)
     pm.fill(Qt.GlobalColor.transparent)
     p = QtGui.QPainter(pm)
-    paint_desktop(p, QtCore.QRectF(0, 0, w, h), hs, ws, radius=radius)
+    r = QtCore.QRectF(0, 0, w, h)
+    paint_desktop(p, r, hs, ws, radius=radius)
+    if ls:
+        _overlay(p, r, ls, radius)
     p.end()
     return pm
 
@@ -356,6 +369,7 @@ class DesktopPreview(QtWidgets.QWidget):
         self.ws = model.waybar_state(None)
         self.anim = 1.0
         self.zoom_bar = False
+        self.ls = None  # Launcher-Zustand → Launcher über dem Desktop zeichnen
         self.setMinimumHeight(220)
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         self._a = QtCore.QVariantAnimation(self)
@@ -398,4 +412,93 @@ class DesktopPreview(QtWidgets.QWidget):
                 tw = th * 16 / 9
             rect = QtCore.QRectF(r.left() + (r.width() - tw) / 2, r.top() + (r.height() - th) / 2, tw, th)
             paint_desktop(p, rect, self.hs, self.ws, self.anim, radius=14)
+            if self.ls:
+                _overlay(p, rect, self.ls, 14)
         p.end()
+
+
+APPS_DEMO = ("Firefox", "Kitty", "Dolphin", "Spotify", "Discord", "Steam", "VS Code", "GIMP", "Obsidian",
+             "Blender", "OBS Studio", "Krita", "VLC", "Thunderbird", "Einstellungen", "Rechner", "Bilder", "Karten")
+
+
+def paint_launcher(p: QtGui.QPainter, r: QtCore.QRectF, ls: dict):
+    """Zeichnet das Launcher-Fenster (Rofi/Wofi/Fuzzel sehen mit diesen Einstellungen ähnlich aus)."""
+    k = r.width() / VW
+    grid = ls["grid"]
+    cols = ls["columns"] if grid else 1
+    f = p.font()
+    f.setPixelSize(max(4, int(round(ls["font_size"] * 1.25 * k))))
+    f.setWeight(QtGui.QFont.Weight.Medium)
+    p.setFont(f)
+    fm = QtGui.QFontMetricsF(f)
+    pad, sp = ls["padding"] * k, ls["spacing"] * k
+    ic = ls["icon_size"] * k if ls["icons"] else 0
+    row_h = (ic + fm.height() + 28 * k) if grid else max(ic, fm.height()) + 16 * k
+    input_h = fm.height() + 20 * k
+    w = min(ls["width"] * k, r.width() - 20 * k)
+    h = 2 * pad + input_h + 12 * k + ls["lines"] * (row_h + sp)
+    x = r.center().x() - w / 2
+    y = {"center": r.center().y() - h / 2, "top": r.top() + ls["offset"] * k + 10 * k,
+         "bottom": r.bottom() - h - ls["offset"] * k - 10 * k}[ls["position"]]
+    box = QtCore.QRectF(x, max(r.top() + 4, y), w, min(h, r.height() - 8))
+    p.save()
+    p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    rad = ls["radius"] * k
+    # weicher Schatten
+    p.setPen(Qt.PenStyle.NoPen)
+    for i in range(6):
+        p.setBrush(QtGui.QColor(0, 0, 0, 18))
+        g = (i + 1) * 3 * k
+        p.drawRoundedRect(box.adjusted(-g, -g + 2 * k, g, g + 2 * k), rad + g, rad + g)
+    p.setBrush(qcolor(ls["bg"]))
+    if ls["border_width"]:
+        p.setPen(QtGui.QPen(qcolor(ls["border"]), max(1.0, ls["border_width"] * k)))
+    p.drawRoundedRect(box, rad, rad)
+    p.setClipRect(box.adjusted(1, 1, -1, -1))
+    inner = box.adjusted(pad, pad, -pad, -pad)
+    ib = QtCore.QRectF(inner.left(), inner.top(), inner.width(), input_h)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(qcolor(ls["input_bg"]))
+    p.drawRoundedRect(ib, max(0.0, rad - 4 * k), max(0.0, rad - 4 * k))
+    tx = ib.left() + 14 * k
+    if ls["show_prompt"] and ls["app"] != "wofi":
+        p.setPen(qcolor(ls["accent"]))
+        p.drawText(QtCore.QRectF(tx, ib.top(), ib.width(), ib.height()), Qt.AlignmentFlag.AlignVCenter, ls["prompt"])
+        tx += fm.horizontalAdvance(ls["prompt"]) + 10 * k
+    p.setPen(qcolor(model.muted_color(ls["fg"])))
+    p.drawText(QtCore.QRectF(tx, ib.top(), ib.right() - tx, ib.height()), Qt.AlignmentFlag.AlignVCenter,
+               ls["placeholder"])
+    y0 = ib.bottom() + 12 * k
+    cw = (inner.width() - sp * (cols - 1)) / cols
+    n = ls["lines"] * cols
+    for i in range(n):
+        cx = inner.left() + (i % cols) * (cw + sp)
+        cy = y0 + (i // cols) * (row_h + sp)
+        cell = QtCore.QRectF(cx, cy, cw, row_h)
+        selected = i == 0
+        if selected:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(qcolor(ls["sel"]))
+            p.drawRoundedRect(cell, ls["el_radius"] * k, ls["el_radius"] * k)
+        name = APPS_DEMO[i % len(APPS_DEMO)]
+        hue = (i * 47 + 200) % 360
+        if grid:
+            if ic:
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QtGui.QColor.fromHsl(hue, 150, 140))
+                p.drawRoundedRect(QtCore.QRectF(cell.center().x() - ic / 2, cell.top() + 10 * k, ic, ic), ic * 0.25,
+                                  ic * 0.25)
+            p.setPen(qcolor(ls["sel_fg"] if selected else ls["fg"]))
+            p.drawText(QtCore.QRectF(cell.left(), cell.bottom() - fm.height() - 8 * k, cell.width(), fm.height()),
+                       Qt.AlignmentFlag.AlignHCenter, fm.elidedText(name, Qt.TextElideMode.ElideRight, cell.width()))
+        else:
+            ix = cell.left() + 10 * k
+            if ic:
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QtGui.QColor.fromHsl(hue, 150, 140))
+                p.drawRoundedRect(QtCore.QRectF(ix, cell.center().y() - ic / 2, ic, ic), ic * 0.25, ic * 0.25)
+                ix += ic + 12 * k
+            p.setPen(qcolor(ls["sel_fg"] if selected else ls["fg"]))
+            p.drawText(QtCore.QRectF(ix, cell.top(), cell.right() - ix, cell.height()), Qt.AlignmentFlag.AlignVCenter,
+                       name)
+    p.restore()

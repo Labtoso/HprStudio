@@ -9,4 +9,4 @@ Exec=hypr-studio
 Icon=de.labtosostudios.hyprstudio
 Terminal=false
 Categories=Qt;Settings;DesktopSettings;
-Keywords=hyprland;waybar;theme;rice;gaps;blur;animation;
+Keywords=hyprland;waybar;rofi;wofi;fuzzel;launcher;theme;rice;gaps;blur;animation;shortcuts;

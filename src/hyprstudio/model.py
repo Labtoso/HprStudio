@@ -33,6 +33,10 @@ def norm(c: str) -> str:
     return "#" + h
 
 
+def muted_color(c: str) -> str:
+    return norm(c)[:7] + "88"
+
+
 def rgba_hypr(c: str) -> str:
     return f"rgba({norm(c)[1:]})"
 

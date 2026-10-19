@@ -1,13 +1,13 @@
 # Maintainer: LabtosoStudios
 pkgname=labtoso-hyprstudio
-pkgver=1.2.0
+pkgver=1.3.0
 pkgrel=1
 pkgdesc="Hypr Studio – style Hyprland and Waybar with a few clicks"
 arch=('any')
 url="https://github.com/LabtosoStudios"
 license=('MIT')
 depends=('python' 'pyside6')
-optdepends=('hyprland: window manager' 'waybar: status bar' 'ttf-jetbrains-mono-nerd: icons in Waybar')
+optdepends=('hyprland: window manager' 'waybar: status bar' 'rofi: Launcher' 'wofi: Launcher' 'fuzzel: Launcher' 'ttf-jetbrains-mono-nerd: icons')
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
