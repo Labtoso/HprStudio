@@ -504,6 +504,8 @@ class HyprPage(EditorPage):
             self._mark()
 
     def set(self, key, value):
+        if key == "autostart_waybar":  # ab jetzt steuert nur noch dieser Schalter den Waybar-Autostart
+            self.state["waybar_managed"] = True
         super().set(key, value)
         if key in ("anim_curve", "anim_tempo", "win_style") and self.state["anim"]:
             self.preview.play()
@@ -656,6 +658,7 @@ class WaybarPage(EditorPage):
             model.run(["pkill", "-x", "waybar"], self.win.log, quiet=True)
             hp = self.win.hypr_page
             if hp.state["autostart_waybar"]:
+                hp.state["waybar_managed"] = True
                 hp.state["autostart_waybar"] = False
                 hp.refresh_controls()
                 hp.changed()

@@ -76,7 +76,7 @@ HYPR_DEFAULT = {
     "no_logo": True, "bg_color": "#111111ff", "focus_on_activate": False, "swallow": False,
     "swallow_regex": "^(kitty|foot|Alacritty)$", "mmb_paste": True, "dpms_mouse": True, "dpms_key": True,
     "monitor_on": False, "monitor_mode": "preferred", "monitor_scale": "auto",
-    "autostart": [], "autostart_waybar": False,
+    "autostart": [], "autostart_waybar": False, "waybar_managed": False,
     "workspaces_on": False, "workspaces": [],  # Arbeitsflächen-Regeln (Name, Monitor, Lücken …)
     "skip_opts": [],  # vom Fehler-Fixer abgeschaltete Optionen, z. B. "decoration.blur.xray"
     "binds": [],  # leer = Hypr Studio schreibt keine Tastenkürzel
@@ -884,11 +884,63 @@ def _anim_plan(s: dict) -> list:
     return out
 
 
+WAYBAR_ONCE = "pgrep -x waybar >/dev/null || waybar"
+
+
+def _is_waybar_cmd(cmd: str) -> bool:
+    """Startet der Befehl NUR Waybar (ggf. mit Optionen)? Ketten wie „waybar & hyprpaper“ zählen nicht."""
+    import re
+    c = cmd.strip()
+    return c == WAYBAR_ONCE or bool(re.fullmatch(r"waybar(\s+[^&;|]*)?", c))
+
+
 def _autostart(s: dict) -> list:
-    cmds = [c.strip() for c in s["autostart"] if c.strip()]
-    if s["autostart_waybar"] and "waybar" not in cmds:
-        cmds.insert(0, "waybar")
+    """Waybar genau einmal: nur über den Schalter, und nur wenn noch keins läuft."""
+    cmds = [c.strip() for c in s["autostart"] if c.strip() and not _is_waybar_cmd(c)]
+    if s["autostart_waybar"]:
+        cmds.insert(0, WAYBAR_ONCE)
     return cmds
+
+
+def foreign_waybar_lines(text: str, fmt: str) -> tuple:
+    """(zeilen_nur_waybar, zeilen_mit_waybar_in_kette) im Autostart der Hauptdatei."""
+    import re
+    only, chained = [], []
+    for i, ln in enumerate(text.splitlines()):
+        s = ln.strip()
+        if fmt == "lua":
+            if s.startswith("--") or "exec_cmd" not in s or "waybar" not in s:
+                continue
+            m = re.search(r"exec_cmd\(\s*([\"'])(.*?)\1", s)
+        else:
+            if s.startswith("#") or not re.match(r"exec(-once)?\s*=", s) or "waybar" not in s:
+                continue
+            m = re.match(r"exec(?:-once)?\s*=\s*()(.*)$", s)
+        cmd = (m.group(2) if m else "").strip()
+        if not re.search(r"\bwaybar\b", cmd):
+            continue
+        (only if _is_waybar_cmd(cmd) else chained).append(i)
+    return only, chained
+
+
+def manage_waybar_autostart(hdir: Path, s: dict, log) -> int:
+    """Hypr Studio steuert den Waybar-Autostart allein (sobald der Schalter benutzt wurde):
+    eigene Waybar-Starts in hyprland.lua/.conf auskommentieren, waybar.service (systemd) abschalten."""
+    if not s.get("waybar_managed"):
+        return 0
+    n = 0
+    fmt = hypr_format(hdir)
+    main = hdir / f"hyprland.{fmt}" if fmt else None
+    if main and main.is_file():
+        only, chained = foreign_waybar_lines(main.read_text(encoding="utf-8", errors="replace"), fmt)
+        n = _comment_lines(main, only, "-- [Hypr Studio] " if fmt == "lua" else "# [Hypr Studio] ", log)
+        lines = main.read_text(encoding="utf-8", errors="replace").splitlines()
+        for i in chained:
+            log(f"Hinweis: startet Waybar zusätzlich (bitte selbst anpassen): {main.name}:{i + 1}: {lines[i].strip()}")
+    if which("systemctl") and run(["systemctl", "--user", "is-enabled", "--quiet", "waybar.service"], log, quiet=True):
+        run(["systemctl", "--user", "disable", "waybar.service"], log)
+        n += 1
+    return n
 
 
 SMART_GAPS_LUA = '''
@@ -1084,6 +1136,7 @@ def apply_hypr(s: dict, hdir: Path, log) -> tuple[bool, str]:
         with open(main, "a", encoding="utf-8") as fh:
             fh.write(("" if text.endswith("\n") or not text else "\n") + f"\n{c} {MARK}\n{line}\n")
         log(f"+ {main}: {line}")
+    manage_waybar_autostart(hdir, s, log)
     run(["hyprctl", "reload"], log)
     return True, fmt
 
