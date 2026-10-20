@@ -24,6 +24,9 @@ TEXT = "#e6edf5"
 MUTED = "#8a98ab"
 DANGER = "#e5534b"
 OK = "#3fb950"
+RAISED = "#2b3747"  # gewählter Zustand (Segmente, Tabs, Sprache) – neutral statt Akzentfarbe
+LINE = "#3a4a5f"    # Rahmen beim Darüberfahren
+HOVER = "#1f2a38"   # Hintergrund beim Darüberfahren
 
 
 def palette(accent: str):
@@ -50,15 +53,15 @@ def qss(accent: str) -> str:
     QWidget {{ color: {TEXT}; font-size: 10pt; }}
     #Root {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 16px; }}
     #Title {{ font-size: 12pt; font-weight: 600; }}
-    #Side {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 16px; }}
-    QPushButton#Nav {{ background: transparent; border: none; border-radius: 10px; padding: 9px 14px;
+    #Side {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
+    QPushButton#Nav {{ background: transparent; border: none; border-radius: 6px; padding: 8px 14px;
                        text-align: left; color: {MUTED}; }}
     QPushButton#NavHead {{ background: transparent; border: none; color: #6b788a; font-size: 9pt; font-weight: 600;
                            text-align: left; padding: 14px 8px 4px 14px; }}
     QPushButton#NavHead:hover {{ color: {MUTED}; }}
     QPushButton#Nav:hover {{ background: {SURFACE2}; color: {TEXT}; }}
     QPushButton#Nav:checked {{ background: {SURFACE2}; color: {TEXT}; }}
-    #Card {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
+    #Card {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
     #CardTitle {{ font-size: 10.5pt; font-weight: 600; }}
     #RowLabel {{ color: {MUTED}; }}
     #Value {{ color: {TEXT}; font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; }}
@@ -68,15 +71,16 @@ def qss(accent: str) -> str:
     QSlider::sub-page:horizontal {{ background: {accent}; border-radius: 3px; }}
     QSlider::handle:horizontal {{ background: {TEXT}; width: 16px; height: 16px; margin: -5px 0; border-radius: 8px; }}
     QSlider::handle:horizontal:hover {{ background: #ffffff; }}
-    QSpinBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 0 6px; min-height: 30px; }}
+    QSpinBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 6px; padding: 0 6px; min-height: 30px; }}
     QSpinBox:focus {{ border-color: {accent}; }}
-    QLineEdit, QComboBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 6px 10px; }}
-    QLineEdit:focus, QComboBox:hover {{ border-color: {accent}; }}
+    QLineEdit, QComboBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 6px; padding: 6px 10px; }}
+    QLineEdit:focus {{ border-color: {accent}; }}
+    QComboBox:hover {{ border-color: {LINE}; }}
     QComboBox::drop-down {{ border: none; width: 22px; }}
     QComboBox QAbstractItemView {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px;
                                    selection-background-color: {accent}; outline: none; padding: 4px; }}
-    QMenu {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px; color: {TEXT}; }}
-    QMenu::item {{ padding: 7px 22px 7px 14px; border-radius: 8px; background: transparent; }}
+    QMenu {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px; padding: 5px; color: {TEXT}; }}
+    QMenu::item {{ padding: 6px 22px 6px 12px; border-radius: 5px; background: transparent; }}
     QMenu::item:selected {{ background: {accent}; color: {on}; }}
     QMenu::item:disabled {{ color: {MUTED}; }}
     QMenu::separator {{ height: 1px; background: {BORDER}; margin: 5px 8px; }}
@@ -89,11 +93,11 @@ def qss(accent: str) -> str:
     QHeaderView::section {{ background: {SURFACE2}; color: {MUTED}; border: none; border-right: 1px solid {BORDER};
         padding: 6px 8px; }}
     QFileDialog QToolButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px; padding: 4px; }}
-    QFileDialog QToolButton:hover {{ border-color: {accent}; }}
+    QFileDialog QToolButton:hover {{ border-color: {LINE}; }}
     QFileDialog QSplitter::handle {{ background: transparent; }}
-    #PopupCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
+    #PopupCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px; }}
     QListWidget#PopList {{ background: transparent; border: none; outline: none; }}
-    QListWidget#PopList::item {{ border-radius: 8px; padding: 5px 8px; }}
+    QListWidget#PopList::item {{ border-radius: 5px; padding: 5px 8px; }}
     QListWidget#PopList::item:hover {{ background: {SURFACE2}; }}
     QListWidget#PopList::item:selected {{ background: {accent}; color: {on}; }}
     QComboBox QAbstractItemView::item {{ border-radius: 6px; padding: 4px 6px; }}
@@ -101,17 +105,17 @@ def qss(accent: str) -> str:
     QListWidget#ModList::item {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px;
                                  padding: 6px 8px; margin: 2px 0; }}
     QListWidget#ModList::item:selected {{ border-color: {accent}; color: {TEXT}; }}
-    #TabBox {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
+    #TabBox {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 9px; }}
     #TabBox QPushButton#Seg {{ padding: 7px 22px; font-weight: 600; }}
-    QPushButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 8px 16px; }}
-    QPushButton:hover {{ border-color: #3a4a5f; background: #1f2a38; }}
+    QPushButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 7px; padding: 8px 16px; }}
+    QPushButton:hover {{ border-color: {LINE}; background: {HOVER}; }}
     QPushButton:disabled {{ color: #4d5a6b; border-color: {SURFACE2}; }}
     QPushButton#Primary {{ background: {accent}; border: 1px solid {accent}; color: {on}; font-weight: 600; }}
     QPushButton#Primary:hover {{ background: {accent}; border-color: {accent}; }}
     QPushButton#Primary:disabled {{ background: {SURFACE2}; border-color: {SURFACE2}; color: #4d5a6b; }}
     QPushButton#Danger:hover {{ border-color: {DANGER}; color: {DANGER}; }}
-    QPushButton#Outline {{ background: transparent; border: 1px solid {accent}; color: {accent}; font-weight: 600; }}
-    QPushButton#Outline:hover {{ background: {accent}; color: {on}; }}
+    QPushButton#Outline {{ background: transparent; border: 1px solid {LINE}; color: {TEXT}; }}
+    QPushButton#Outline:hover {{ background: {HOVER}; }}
     QPushButton#DangerFill {{ background: transparent; border: 1px solid {DANGER}; color: {DANGER}; font-weight: 600; }}
     QPushButton#DangerFill:hover {{ background: {DANGER}; color: #ffffff; }}
     QPushButton#DangerFill:disabled {{ border-color: {SURFACE2}; color: #4d5a6b; background: transparent; }}
@@ -122,9 +126,10 @@ def qss(accent: str) -> str:
     QCheckBox::indicator:disabled {{ background: {BG}; }}
     QCheckBox#Sure {{ color: {DANGER}; font-weight: 600; }}
     QCheckBox#Sure::indicator:checked {{ background: {DANGER}; border-color: {DANGER}; }}
-    QPushButton#Seg {{ background: transparent; border: none; border-radius: 8px; padding: 6px 14px; color: {MUTED}; }}
-    QPushButton#Seg:checked {{ background: {accent}; color: {on}; font-weight: 600; }}
-    #SegBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; }}
+    QPushButton#Seg {{ background: transparent; border: none; border-radius: 5px; padding: 6px 14px; color: {MUTED}; }}
+    QPushButton#Seg:hover {{ color: {TEXT}; }}
+    QPushButton#Seg:checked {{ background: {RAISED}; color: {TEXT}; font-weight: 600; }}
+    #SegBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 7px; }}
     QToolButton {{ background: transparent; border: none; border-radius: 8px; padding: 4px; }}
     QToolButton:hover {{ background: {SURFACE2}; }}
     QToolButton#CloseBtn:hover {{ background: {DANGER}; }}
@@ -133,36 +138,36 @@ def qss(accent: str) -> str:
     #ScrollInner {{ background: transparent; }}
     QScrollBar:vertical {{ width: 8px; background: transparent; margin: 4px 0; }}
     QScrollBar::handle:vertical {{ background: {BORDER}; border-radius: 4px; min-height: 30px; }}
-    QScrollBar::handle:vertical:hover {{ background: #3a4a5f; }}
+    QScrollBar::handle:vertical:hover {{ background: {LINE}; }}
     QScrollBar:horizontal {{ height: 8px; background: transparent; }}
     QScrollBar::handle:horizontal {{ background: {BORDER}; border-radius: 4px; min-width: 30px; }}
     QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {{ width: 0; height: 0; background: none; }}
-    #BindRow {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 12px; }}
+    #BindRow {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px; }}
     #BindRow QComboBox {{ background: {BG}; }}
-    QPushButton#Mod {{ background: transparent; padding: 4px 9px; border-radius: 8px; color: {MUTED}; font-size: 9pt; }}
-    QPushButton#Mod:checked {{ border-color: {accent}; color: {accent}; font-weight: 600; }}
+    QPushButton#Mod {{ background: transparent; padding: 4px 9px; border-radius: 5px; color: {MUTED}; font-size: 9pt; }}
+    QPushButton#Mod:checked {{ background: {RAISED}; border-color: {LINE}; color: {TEXT}; font-weight: 600; }}
     QPushButton#KeyBtn {{ background: {BG}; font-family: "JetBrains Mono", "Hack", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", monospace;
                           font-weight: 600; }}
     #Warn {{ background: transparent; border: 1px solid {DANGER}; border-radius: 11px; color: {DANGER}; font-weight: 700; }}
     #ChipOk {{ background: transparent; border: none; padding: 0; color: {OK}; font-size: 9pt; }}
     #ChipWarn {{ background: transparent; border: none; padding: 0; color: #d29922; font-size: 9pt; }}
-    #Mono {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-weight: 600; color: {accent}; }}
+    #Mono {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; color: {TEXT}; }}
     #Code {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-size: 9pt; color: {MUTED};
              background: {BG}; border-radius: 6px; padding: 4px 8px; }}
     QProgressBar {{ background: {SURFACE2}; border: none; border-radius: 3px; max-height: 6px; }}
     QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
     #Status {{ color: {MUTED}; }}
-    QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 12px; padding: 8px;
+    QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 8px; padding: 8px;
                       font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 9pt;
                       color: #b8c4d4; }}
-    QPlainTextEdit[readOnly="false"] {{ background: {SURFACE2}; border-radius: 10px; color: {TEXT}; }}
+    QPlainTextEdit[readOnly="false"] {{ background: {SURFACE2}; border-radius: 6px; color: {TEXT}; }}
     QPlainTextEdit[readOnly="false"]:focus {{ border-color: {accent}; }}
     #Panel {{ background: {SURFACE}; border-right: 1px solid {BORDER}; border-top-left-radius: 16px;
               border-bottom-left-radius: 16px; }}
     #PanelTitle {{ font-size: 13pt; font-weight: 600; }}
     #Label {{ color: {MUTED}; font-size: 9pt; }}
     QPushButton#Lang {{ padding: 6px 14px; }}
-    QPushButton#Lang:checked {{ border-color: {accent}; color: {accent}; font-weight: 600; }}
+    QPushButton#Lang:checked {{ background: {RAISED}; border-color: {LINE}; color: {TEXT}; font-weight: 600; }}
     QToolTip {{ background: {SURFACE2}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 6px; padding: 6px; }}
     QColorDialog, QColorDialog QWidget {{ background: {SURFACE}; }}
     QSpinBox QLineEdit {{ background: transparent; border: none; padding: 0; }}
