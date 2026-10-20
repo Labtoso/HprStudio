@@ -7,7 +7,7 @@ from pathlib import Path
 from . import model, online, paper
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt, Signal
-from .widgets import Card, FlowGrid, Switch, set_chip
+from .widgets import Card, FlowGrid, Segmented, Switch, set_chip
 from .workspaces import monitors
 
 
@@ -147,6 +147,36 @@ class Thumb(QtWidgets.QLabel):
             self.clicked.emit(self.path)
 
 
+class WallTile(QtWidgets.QFrame):
+    """Online-Bild: Vorschau + Auflösung/Favoriten; Klick = laden und als Hintergrund setzen."""
+    clicked = Signal(object)
+
+    def __init__(self, item: dict, parent=None):
+        super().__init__(parent)
+        self.item = item
+        self.setObjectName("BindRow")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(196, 146)
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(6)
+        self.pic = QtWidgets.QLabel()
+        self.pic.setFixedSize(180, 101)
+        self.pic.setStyleSheet("background: #1b2430; border-radius: 10px;")
+        info = QtWidgets.QLabel(f"{item['res'].replace('x', '×')}   ♥ {item['favs']}")
+        info.setObjectName("RowLabel")
+        lay.addWidget(self.pic)
+        lay.addWidget(info)
+        self.setToolTip(t("tip.wall_tile"))
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.item)
+
+
+WALL_SORTS = ("toplist", "date_added", "favorites", "random")
+
+
 class PaperEditor(QtWidgets.QWidget):
     KIND = "paper"
 
@@ -203,7 +233,45 @@ class PaperEditor(QtWidgets.QWidget):
         self.lib_card.layout().addWidget(self.lib_empty)
         self.grid = FlowGrid(176)
         self.lib_card.layout().addWidget(self.grid)
-        lay.addWidget(self.lib_card)
+        lib_at = lay.count()
+
+        # Online suchen (wallhaven.cc, nur jugendfrei)
+        self.web_card = Card("paper.web", self)
+        self.cards.append(self.web_card)
+        self.wsearch = QtWidgets.QLineEdit()
+        self.wsearch.setClearButtonEnabled(True)
+        self.wsearch.setMinimumHeight(40)
+        self.web_card.layout().addWidget(self.wsearch)
+        frow = QtWidgets.QHBoxLayout()
+        frow.setSpacing(10)
+        self.wf = {}
+        for key, opts, pre in (("wall_sort", WALL_SORTS, "wsort."), ("wall_cat", ("all", "general", "anime"), "wcat."),
+                               ("wall_res", ("all", "fhd", "qhd", "uhd"), "wres.")):
+            sg = Segmented(opts, prefix=pre)
+            sg.changed.connect(lambda v, k=key: self._wall_filter(k, v))
+            self.segs.append(sg)
+            frow.addWidget(sg)
+            self.wf[key] = (sg, opts)
+        frow.addStretch()
+        self.web_card.layout().addLayout(frow)
+        self.web_state = QtWidgets.QLabel()
+        self.web_state.setObjectName("RowLabel")
+        self.web_card.layout().addWidget(self.web_state)
+        self.web_grid = FlowGrid(196)
+        self.web_card.layout().addWidget(self.web_grid)
+        self.btn_wmore = _btn()
+        self.btn_wmore.clicked.connect(lambda: self.wall_search(more=True))
+        self.web_card.layout().addWidget(self.btn_wmore, 0, Qt.AlignmentFlag.AlignHCenter)
+        lay.addWidget(self.web_card)
+        lay.addWidget(self.lib_card)  # Bibliothek unter der Suche
+        self.wgen, self.wpage, self.wlast, self.wtiles = 0, 1, 1, {}
+        self.wfetch = self.wpics = None
+        self._wtimer = QtCore.QTimer(self)
+        self._wtimer.setSingleShot(True)
+        self._wtimer.setInterval(500)
+        self._wtimer.timeout.connect(self.wall_search)
+        self.wsearch.textChanged.connect(lambda _: self._wtimer.start())
+        self._wloaded = False
 
         # Pro Monitor
         self.mon_card = Card("paper.per_monitor", self)
@@ -251,8 +319,110 @@ class PaperEditor(QtWidgets.QWidget):
         self.changed()
 
     def refresh(self):
-        """Beim Öffnen des Bereichs: Bibliothek neu einlesen."""
+        """Beim Öffnen des Bereichs: Bibliothek neu einlesen, Online-Suche einmal starten."""
         self.load_library()
+        for key, (sg, opts) in self.wf.items():
+            sg.select(self._wf(key))
+        if not self._wloaded:
+            self._wloaded = True
+            self.wall_search()
+
+    # ----- Online suchen -----
+    def _wf(self, key) -> str:
+        opts = self.wf[key][1]
+        v = self.win.cfg.get(key)
+        return v if v in opts else opts[0]
+
+    def _wall_filter(self, key, value):
+        self.win.cfg[key] = value
+        self.win.save_later()
+        self.wall_search()
+
+    def wall_search(self, more: bool = False):
+        if more:
+            self.wpage += 1
+        else:
+            self.wgen += 1
+            self.wpage = 1
+            for w in self.web_grid.items:
+                w.hide()
+                w.setParent(None)
+                w.deleteLater()
+            self.web_grid.items, self.wtiles = [], {}
+        gen, page = self.wgen, self.wpage
+        q, sort, cat, res = self.wsearch.text(), self._wf("wall_sort"), self._wf("wall_cat"), self._wf("wall_res")
+        self.web_state.setText(t("paper.web_loading"))
+        self.web_state.show()
+        self.btn_wmore.hide()
+        self.wfetch = Job(lambda _log: online.wall_search(q, sort, cat, res, page), self)
+        self.wfetch.result.connect(lambda r, g=gen: self._wall_loaded(g, r))
+        self.wfetch.start()
+
+    def _wall_loaded(self, gen, r):
+        if gen != self.wgen:
+            return
+        if isinstance(r, Exception):
+            self.web_state.setText(t("cur.offline"))
+            return
+        items, self.wlast = r
+        pics = []
+        for it in items:
+            tile = WallTile(it)
+            tile.clicked.connect(self._wall_pick)
+            self.web_grid.add(tile)
+            self.wtiles[it["id"]] = tile
+            pics.append((it["id"], it["thumb"]))
+        self.web_state.setText(t("cur.nomatch"))
+        self.web_state.setVisible(not self.web_grid.items)
+        self.btn_wmore.setText(t("cur.more"))
+        self.btn_wmore.setVisible(self.wpage < self.wlast and bool(items))
+        if pics:
+            self.wpics = PicJob(pics, self)
+            self.wpics.got.connect(lambda k, data, g=gen: self._wall_pic(g, k, data))
+            self.wpics.start()
+
+    def _wall_pic(self, gen, key, data):
+        tile = self.wtiles.get(key)
+        if gen == self.wgen and tile is not None:
+            img = QtGui.QImage()
+            img.loadFromData(data)
+            if not img.isNull():
+                pm = QtGui.QPixmap(180, 101)
+                pm.fill(Qt.GlobalColor.transparent)
+                p = QtGui.QPainter(pm)
+                p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+                p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
+                clip = QtGui.QPainterPath()
+                clip.addRoundedRect(QtCore.QRectF(0, 0, 180, 101), 10, 10)
+                p.setClipPath(clip)
+                s = max(180 / img.width(), 101 / img.height())
+                sw, sh = 180 / s, 101 / s
+                p.drawImage(QtCore.QRectF(0, 0, 180, 101), img,
+                            QtCore.QRectF((img.width() - sw) / 2, (img.height() - sh) / 2, sw, sh))
+                p.end()
+                tile.pic.setPixmap(pm)
+
+    def _wall_pick(self, item):
+        if self.job:
+            return
+        self.win.log("")
+        self.win.set_status(t("dl.loading", name=item["res"]))
+        self.job = Job(lambda log: online.wall_install(item, log), self)
+        self.job.line.connect(self.win.log)
+        self.job.result.connect(self._wall_got)
+        self.job.start()
+
+    def _wall_got(self, r):
+        self.job = None
+        if isinstance(r, Exception):
+            self.win.log(f"Fehler: {r}")
+            self.win.set_status(t("dl.fail", err=r))
+            return
+        self.state["path"] = str(r)
+        self.changed()
+        self._monitors()
+        self.load_library()
+        self.win.set_status(t("paper.picked", name=r.name))
 
     # ----- Bibliothek -----
     def load_library(self):
@@ -405,6 +575,8 @@ class PaperEditor(QtWidgets.QWidget):
         self.btn_img.setText(t("paper.image"))
         self.btn_dir.setText(t("paper.folder"))
         self.btn_get.setText(t("paper.get"))
+        self.wsearch.setPlaceholderText(t("paper.web_search"))
+        self.btn_wmore.setText(t("cur.more"))
         self.btn_lib_open.setText(t("paper.open"))
         self.btn_undo.setText(t("undo"))
         self.btn_apply.setText(t("apply"))

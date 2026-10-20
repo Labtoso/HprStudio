@@ -307,6 +307,9 @@ TEXT["en"].update({'cur.sort.rec': 'Recommended', 'cur.sort.high': 'Top rated', 
 TEXT["de"].update({'launcher.bound': 'Kürzel: {list}', 'launcher.unbound': 'Kein Kürzel startet einen Launcher', 'launcher.ok': 'Passt', 'launcher.other': 'Anderer Launcher', 'tip.launcher.use': 'Alle Launcher-Kürzel (auch die aus deiner hyprland.lua) und den Waybar-Knopf auf diesen Launcher umstellen und sofort anwenden'})
 TEXT["en"].update({'launcher.bound': 'Shortcuts: {list}', 'launcher.unbound': 'No shortcut starts a launcher', 'launcher.ok': 'Matches', 'launcher.other': 'Other launcher', 'tip.launcher.use': 'Point every launcher shortcut (including those in your hyprland.lua) and the Waybar button at this launcher and apply right away'})
 
+TEXT["de"].update({'paper.web': 'Online suchen', 'paper.web_search': 'Hintergründe suchen … (z. B. berge, space, anime)', 'paper.web_loading': 'Suche …', 'wsort.toplist': 'Beliebt', 'wsort.date_added': 'Neueste', 'wsort.favorites': 'Meiste Favoriten', 'wsort.random': 'Zufall', 'wcat.all': 'Alle', 'wcat.general': 'Allgemein', 'wcat.anime': 'Anime', 'wres.all': 'Jede Größe', 'wres.fhd': 'Full HD+', 'wres.qhd': '1440p+', 'wres.uhd': '4K', 'tip.wall_tile': 'Klicken: herunterladen und als Hintergrund für alle Monitore setzen (wallhaven.cc)'})
+TEXT["en"].update({'paper.web': 'Search online', 'paper.web_search': 'Search wallpapers … (e.g. mountains, space, anime)', 'paper.web_loading': 'Searching …', 'wsort.toplist': 'Popular', 'wsort.date_added': 'Newest', 'wsort.favorites': 'Most favourites', 'wsort.random': 'Random', 'wcat.all': 'All', 'wcat.general': 'General', 'wcat.anime': 'Anime', 'wres.all': 'Any size', 'wres.fhd': 'Full HD+', 'wres.qhd': '1440p+', 'wres.uhd': '4K', 'tip.wall_tile': 'Click: download and set as wallpaper for all monitors (wallhaven.cc)'})
+
 _lang = "en"
 
 

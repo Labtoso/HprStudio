@@ -297,3 +297,38 @@ def open_dir(p: Path) -> None:
         subprocess.Popen(["xdg-open", str(p)], start_new_session=True)
     elif os.name == "nt":
         os.startfile(str(p))  # noqa: S606 – nur Testmodus unter Windows
+
+
+# ---------- Hintergrundbilder suchen (wallhaven.cc, nur jugendfrei) ----------
+
+WALLHAVEN = "https://wallhaven.cc/api/v1/search"
+WALL_SORTS = ("toplist", "date_added", "favorites", "random")
+WALL_CATS = {"all": "110", "general": "100", "anime": "010"}
+WALL_RES = {"all": "", "fhd": "1920x1080", "qhd": "2560x1440", "uhd": "3840x2160"}
+
+
+def wall_search(query: str = "", sort: str = "toplist", cat: str = "all", res: str = "all", page: int = 1) -> tuple:
+    """([Bild], letzte Seite) – 24 pro Seite."""
+    from urllib.parse import urlencode
+    params = {"q": query.strip(), "sorting": sort if sort in WALL_SORTS else "toplist", "purity": "100",
+              "categories": WALL_CATS.get(cat, "110"), "page": page}
+    if params["sorting"] == "toplist":
+        params["topRange"] = "1y"
+    if WALL_RES.get(res):
+        params["atleast"] = WALL_RES[res]
+    d = json.loads(_get(f"{WALLHAVEN}?{urlencode(params)}", 30))
+    items = [{"id": x["id"], "thumb": x["thumbs"]["small"], "full": x["path"], "res": x.get("resolution", ""),
+              "favs": int(x.get("favorites") or 0), "size": int(x.get("file_size") or 0)}
+             for x in d.get("data") or [] if x.get("purity") == "sfw"]
+    return items, int((d.get("meta") or {}).get("last_page") or 1)
+
+
+def wall_install(item: dict, log) -> Path:
+    dest = wall_dir() / "wallhaven"
+    dest.mkdir(parents=True, exist_ok=True)
+    f = dest / item["full"].rsplit("/", 1)[-1]
+    if not f.exists():
+        log(f"↓ {item['full']}")
+        f.write_bytes(_get(item["full"]))
+    log(f"→ {f}")
+    return f
