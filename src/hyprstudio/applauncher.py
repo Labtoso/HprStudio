@@ -195,8 +195,14 @@ def main(argv) -> int:
     QtGui.QGuiApplication.setDesktopFileName(APP_ID)
     app = QtWidgets.QApplication(argv)
     app.setApplicationName(APP_ID)
-    if s["icon_theme"]:
-        QtGui.QIcon.setThemeName(s["icon_theme"])
+    # Symbolthema wie im System (KDE z. B. Sweet), auch aus ~/.local/share/icons und ~/.icons
+    home = Path.home()
+    paths = [str(p) for p in (home / ".local/share/icons", home / ".icons") if p.is_dir()]
+    QtGui.QIcon.setThemeSearchPaths(paths + [p for p in QtGui.QIcon.themeSearchPaths() if p not in paths]
+                                    + [str(d.parent / "icons") for d in app_dirs() if (d.parent / "icons").is_dir()])
+    theme = lconf.icon_theme(s)
+    if theme:
+        QtGui.QIcon.setThemeName(theme)
     elif not QtGui.QIcon.themeName() or QtGui.QIcon.themeName() == "hicolor":
         for name in ("Papirus-Dark", "Papirus", "breeze-dark", "breeze", "Adwaita"):
             if any((d.parent / "icons" / name).is_dir() for d in app_dirs()):

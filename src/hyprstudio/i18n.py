@@ -328,6 +328,15 @@ TEXT["en"].update({'act.launcher': 'Open launcher'})
 TEXT["de"].update({'ltoggle': 'Zweites Drücken schließt', 'tip.ltoggle': 'Launcher-Taste nochmal drücken schließt den offenen Launcher wieder (gilt für Kürzel „Launcher öffnen“)'})
 TEXT["en"].update({'ltoggle': 'Second press closes', 'tip.ltoggle': 'Pressing the launcher key again closes the open launcher (for “Open launcher” shortcuts)'})
 
+TEXT["de"].update({'launcher.detected': 'Erkannt: deine Kürzel starten {app} – Einstellungen für {app}'})
+TEXT["en"].update({'launcher.detected': 'Detected: your shortcuts start {app} – settings for {app}'})
+
+TEXT["de"].update({'pkg.noagent': 'Kein Polkit-Agent (Passwortfenster) gefunden – öffne ein Terminal, dort mit deinem Passwort bestätigen', 'pkg.err_sync': 'Paketliste veraltet: erst das System aktualisieren (sudo pacman -Syu), dann nochmal', 'pkg.err_notfound': 'Paket nicht gefunden (Paketquelle fehlt?)', 'pkg.err_lock': 'Paketmanager ist gerade belegt – kurz warten und nochmal', 'pkg.err_auth': 'Passwort nicht bestätigt'})
+TEXT["en"].update({'pkg.noagent': 'No polkit agent (password dialog) found – opening a terminal, confirm there with your password', 'pkg.err_sync': 'Package list outdated: update the system first (sudo pacman -Syu), then retry', 'pkg.err_notfound': 'Package not found (repository missing?)', 'pkg.err_lock': 'Package manager is busy – wait a moment and retry', 'pkg.err_auth': 'Password not confirmed'})
+
+TEXT["de"].update({'launcher.after_install': '{app} erst installieren – danach werden Kürzel und Waybar automatisch umgestellt'})
+TEXT["en"].update({'launcher.after_install': 'Install {app} first – shortcuts and Waybar switch over automatically afterwards'})
+
 _lang = "en"
 
 

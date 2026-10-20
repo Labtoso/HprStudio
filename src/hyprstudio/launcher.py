@@ -1,6 +1,8 @@
 """App-Launcher Rofi, Wofi und Fuzzel: ein gemeinsamer Zustand, drei Config-Formate. Ohne Qt."""
 
 import json
+import os
+import subprocess
 from pathlib import Path
 
 from .model import MARK, _backup_foreign, muted_color, norm, rgba_css, undo_file
@@ -62,6 +64,45 @@ PRESETS = {
 }
 
 
+def _ini_value(f: Path, section: str, key: str) -> str:
+    try:
+        lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    sect = ""
+    for ln in lines:
+        ln = ln.strip()
+        if ln.startswith("["):
+            sect = ln
+        elif sect == section and "=" in ln and ln.split("=", 1)[0].strip() == key:
+            return ln.split("=", 1)[1].strip()
+    return ""
+
+
+def system_icon_theme() -> str:
+    """Symbolthema des Systems: KDE (kdeglobals [Icons] Theme, z. B. Sweet), sonst GTK, sonst gsettings."""
+    from . import model
+    if model.DRY:
+        return ""
+    cfg = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    v = _ini_value(cfg / "kdeglobals", "[Icons]", "Theme")
+    for f in (cfg / "gtk-3.0" / "settings.ini", cfg / "gtk-4.0" / "settings.ini"):
+        v = v or _ini_value(f, "[Settings]", "gtk-icon-theme-name").strip('"')
+    if not v:
+        try:
+            out = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "icon-theme"],
+                                 capture_output=True, text=True, timeout=3).stdout.strip().strip("'")
+            v = "" if out in ("", "hicolor") else out
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return v
+
+
+def icon_theme(s: dict) -> str:
+    """Im Launcher-Tab eingetragenes Thema, sonst das des Systems (KDE/GTK)."""
+    return s["icon_theme"] or system_icon_theme()
+
+
 def _copy(d):
     return json.loads(json.dumps(d))
 
@@ -112,7 +153,7 @@ def rofi_config(s: dict, theme_path: str) -> str:
 configuration {{
     modi: "{modi}";
     show-icons: {"true" if s["icons"] else "false"};
-{f'    icon-theme: "{s["icon_theme"]}";' + chr(10) if s["icon_theme"] else ""}    font: "{s["font"]} {s["font_size"]}";
+{f'    icon-theme: "{icon_theme(s)}";' + chr(10) if icon_theme(s) else ""}    font: "{s["font"]} {s["font_size"]}";
     terminal: "{s["terminal"]}";
     display-drun: "{s["prompt"]}";
     display-run: "{s["prompt"]}";
@@ -235,7 +276,6 @@ def wofi_config(s: dict) -> str:
         f"width={s['width']}",
         f"height={height}",
         f"location={WOFI_POS[s['position']]}",
-        f"yoffset={s['offset'] if s['position'] == 'top' else -s['offset'] if s['position'] == 'bottom' else 0}",
         f"prompt={s['placeholder']}",
         f"allow_images={'true' if s['icons'] else 'false'}",
         f"image_size={s['icon_size']}",
@@ -247,6 +287,9 @@ def wofi_config(s: dict) -> str:
         f"term={s['terminal']}",
         "gtk_dark=true",
     ]
+    # Achtung wofi(7): JEDER x/y-Offset bei location=center schaltet auf top_left um → nur oben/unten, nur ≠ 0
+    if s["position"] in ("top", "bottom") and s["offset"]:
+        lines.insert(5, f"yoffset={s['offset'] if s['position'] == 'top' else -s['offset']}")
     return "\n".join(lines) + "\n"
 
 
@@ -324,8 +367,8 @@ def fuzzel_ini(s: dict) -> str:
         f"placeholder={s['placeholder']}",
         f"icons-enabled={'yes' if s['icons'] else 'no'}",
     ]
-    if s["icon_theme"]:
-        main.append(f"icon-theme={s['icon_theme']}")
+    if icon_theme(s):
+        main.append(f"icon-theme={icon_theme(s)}")
     main += [
         f"terminal={s['terminal']} -e",
     ]
@@ -361,13 +404,26 @@ def fuzzel_ini(s: dict) -> str:
 
 # ---------- Schreiben ----------
 
-def files(s: dict, cfg_home: Path, home_for_theme: Path | None = None) -> list:
-    """[(pfad, inhalt)] für ALLE Launcher (gewählter zuerst): Theme, Größe und Position gelten so überall,
-    auch wenn ein Kürzel einen anderen Launcher startet als den im Tab gewählten."""
+def files(s: dict, cfg_home: Path, home_for_theme: Path | None = None, per_app: dict | None = None) -> list:
+    """[(pfad, inhalt)] für ALLE Launcher (gewählter zuerst). Jeder nimmt seine eigenen Einstellungen
+    (per_app[app]); wer noch keine hat, bekommt die des gewählten – so ist jeder Launcher fertig eingerichtet,
+    auch wenn ein Kürzel einen anderen startet als den im Tab gewählten."""
     out = []
     for app in [s["app"]] + [a for a in APPS if a != s["app"]]:
-        out += _files_for(app, s, cfg_home)
+        own = s if app == s["app"] else state((per_app or {}).get(app) or s)
+        out += _files_for(app, dict(own, app=app), cfg_home)
     return out
+
+
+def app_of_cmd(cmd: str) -> str | None:
+    """Befehl → Launcher-Schlüssel (rofi/wofi/fuzzel/llauncher) oder None."""
+    c = (cmd or "").strip()
+    if c.startswith("pkill -x ") and "||" in c:
+        c = c.split("||", 1)[1].strip()
+    if c.startswith("hypr-studio --launcher"):
+        return "llauncher"
+    first = Path(c.split(" ", 1)[0]).name if c else ""
+    return {"rofi": "rofi", "wofi": "wofi", "fuzzel": "fuzzel", "l-launcher": "llauncher"}.get(first)
 
 
 def _files_for(app: str, s: dict, cfg_home: Path) -> list:
@@ -384,8 +440,8 @@ def _files_for(app: str, s: dict, cfg_home: Path) -> list:
     return [(cfg_home / "fuzzel" / "fuzzel.ini", fuzzel_ini(s))]
 
 
-def apply(s: dict, cfg_home: Path, log) -> tuple[bool, str]:
-    for target, data in files(s, cfg_home):
+def apply(s: dict, cfg_home: Path, log, per_app: dict | None = None) -> tuple[bool, str]:
+    for target, data in files(s, cfg_home, per_app=per_app):
         target.parent.mkdir(parents=True, exist_ok=True)
         bak = _backup_foreign(target)
         if bak:

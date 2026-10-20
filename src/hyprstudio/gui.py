@@ -265,6 +265,8 @@ class MainWindow(QtWidgets.QWidget):
         page = {"hypr": self.hypr_page, "waybar": self.waybar_page, "launcher": self.launcher_page,
                 "other": self.other_page}[tab]
         self.stack.setCurrentWidget({"waybar": self.waybar_gate, "launcher": self.launcher_gate}.get(tab, page))
+        if tab == "launcher":  # aktiven Launcher aus den Kürzeln erkennen
+            self.launcher_page.autodetect()
         self.refresh_gates()
         if tab == "other":
             if self.cfg.get("other_section", "fix") == "fix":

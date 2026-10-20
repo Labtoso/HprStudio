@@ -2,7 +2,7 @@
 
 import json
 
-from . import launcher, model, theme
+from . import launcher, model, theme, packages
 from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
@@ -744,7 +744,55 @@ class LauncherPage(EditorPage):
 
     def changed(self):
         self.preview.ls = self.state
+        self.win.cfg.setdefault("launcher_apps", {})[self.state["app"]] = self.state  # eigene Werte pro Launcher
         super().changed()
+
+    # ----- jeder Launcher mit eigenen Einstellungen -----
+    def switch_app(self, app: str, push: bool):
+        """Auf einen anderen Launcher wechseln: dessen eigene Einstellungen laden (beim ersten Mal den
+        aktuellen Look übernehmen). push = Kürzel und Waybar sofort auf ihn umstellen und anwenden."""
+        if app not in launcher.APPS:
+            return
+        store = self.win.cfg.setdefault("launcher_apps", {})
+        store[self.state["app"]] = self.state
+        if app != self.state["app"]:
+            ns = launcher.state(store.get(app) or dict(self.state))
+            ns["app"] = app
+            self.state = ns
+            self.win.cfg["launcher_preset"] = ""
+            self.refresh_controls()
+            self.changed()
+        self.update_info()
+        if hasattr(self.win, "launcher_gate"):
+            self.win.launcher_gate.refresh()
+        if push:
+            if packages.installed(app):
+                self.use_everywhere()
+            else:  # erst nach der Installation umstellen, sonst öffnet das Kürzel nichts
+                self._pending_push = app
+                self.win.set_status(t("launcher.after_install", app=t("app." + app)))
+
+    def use_preset(self, name):
+        app = self.state["app"]  # Presets ändern nur den Look, nicht den Launcher
+        super().use_preset(name)
+        if self.state["app"] != app:
+            self.state["app"] = app
+            self.changed()
+
+    def detect_app(self) -> str | None:
+        """Welchen Launcher starten die Kürzel wirklich? (eigene zuerst, dann hyprland.lua/.conf)"""
+        hp = self.win.hypr_page
+        for b, _ in model.launcher_binds(hp.hdir(), hp.state["binds"]):
+            app = launcher.app_of_cmd(model.bind_cmd(b))
+            if app:
+                return app
+        return None
+
+    def autodetect(self):
+        app = self.detect_app()
+        if app and app != self.state["app"]:
+            self.switch_app(app, push=False)
+            self.win.set_status(t("launcher.detected", app=t("app." + app)))
 
     def build_section(self, key, lay):
         if key == "presets":
@@ -822,6 +870,10 @@ class LauncherPage(EditorPage):
             c.toggle("show_scroll")
 
     def set(self, key, value):
+        if key == "app":  # Launcher wechseln = eigene Einstellungen laden + System umstellen
+            if value != self.state["app"]:
+                self.switch_app(value, push=True)
+            return
         super().set(key, value)
         if key == "toggle":  # steckt in den Hyprland-Kürzeln → dort neu schreiben
             model.LAUNCHER_TOGGLE = bool(value)
@@ -882,7 +934,8 @@ class LauncherPage(EditorPage):
         app = self.state["app"]
         if app != "llauncher" and not model.which(app):
             self.win.log(t("launcher.missing", app=app))
-        ok, info = launcher.apply(self.state, model.config_home(), self.win.log)
+        ok, info = launcher.apply(self.state, model.config_home(), self.win.log,
+                                  per_app=self.win.cfg.get("launcher_apps"))
         self.win.report(ok, info)
         hp = self.win.hypr_page
         if ok and any(b["action"] == "launcher" for b in hp.state["binds"]):
@@ -903,6 +956,9 @@ class LauncherPage(EditorPage):
 
     def update_info(self):
         app = self.state["app"]
+        if getattr(self, "_pending_push", None) == app and packages.installed(app):
+            self._pending_push = None
+            self.use_everywhere()  # Installation fertig → Kürzel und Waybar jetzt umstellen
         ok = app == "llauncher" or model.which(app)
         self.info.setText(f"{t('app.' + app)} · " + ("✓" if ok else t("fmt.none")))
         if hasattr(self, "btn_inst_app"):

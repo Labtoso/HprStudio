@@ -56,6 +56,36 @@ def installed(key: str) -> bool:
     return shutil.which(check) is not None
 
 
+POLKIT_AGENTS = ("hyprpolkitagent", "polkit-kde-authentication-agent-1", "polkit-gnome-authentication-agent-1",
+                 "polkit-mate-authentication-agent-1", "lxpolkit", "lxqt-policykit-agent", "xfce-polkit",
+                 "polkit-agent-helper", "soteria")
+
+
+def polkit_agent() -> bool:
+    """Läuft ein Polkit-Agent (Passwortfenster für pkexec)? Unter Hyprland fehlt er oft → dann Terminal + sudo."""
+    if model.DRY:
+        return True
+    try:
+        out = subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return any(a in out for a in POLKIT_AGENTS)
+
+
+def fail_reason(output: str) -> str | None:
+    """Häufige Paketmanager-Fehler → i18n-Schlüssel mit verständlichem Hinweis."""
+    o = output.lower()
+    if "failed retrieving file" in o or "404" in o or "could not resolve" in o or "failed to synchronize" in o:
+        return "pkg.err_sync"
+    if "target not found" in o or "unable to locate package" in o or "no match for argument" in o:
+        return "pkg.err_notfound"
+    if "unable to lock database" in o or "could not get lock" in o:
+        return "pkg.err_lock"
+    if "not authorized" in o or "authentication" in o or "no authentication agent" in o:
+        return "pkg.err_auth"
+    return None
+
+
 def available(key: str, pm: str | None) -> bool:
     return bool(pm and key in PACKAGES and PACKAGES[key][2].get(pm))
 

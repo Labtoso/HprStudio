@@ -489,33 +489,69 @@ class OtherPage(QtWidgets.QWidget):
             if not self.win.logview.isVisible():
                 self.win.btn_log.setChecked(True)
             return
-        if not shutil.which("pkexec"):
+        if not shutil.which("pkexec") or not packages.polkit_agent():
+            # ohne Polkit-Agent scheitert pkexec lautlos → sichtbares Terminal mit sudo-Passwortabfrage
+            self.win.log(t("pkg.noagent"))
             self._terminal(cmd)
+            self._watch(keys, remove)
             return
+        self._pkg_out = []
         self.proc = QtCore.QProcess(self)
         self.proc.setWorkingDirectory("/tmp")  # nie aus einem Cloud-Ordner als root starten
         self.proc.setProcessChannelMode(QtCore.QProcess.ProcessChannelMode.MergedChannels)
-        self.proc.readyReadStandardOutput.connect(
-            lambda: [self.win.log(x) for x in bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace")
-                     .splitlines() if x.strip()])
-        self.proc.finished.connect(lambda code, _s=None: self._installed(code, cmd))
+        self.proc.readyReadStandardOutput.connect(self._pkg_read)
+        self.proc.finished.connect(lambda code, _s=None, k=keys, r=remove: self._installed(code, cmd, k, r))
         self.win.log("$ pkexec " + " ".join(cmd))
         self.win.set_status(t("pkg.busy"))
         self.win.bar_busy(True)
         self.proc.start("pkexec", cmd)
         self.refresh_packages()
 
-    def _installed(self, code: int, cmd: list):
+    def _pkg_read(self):
+        for x in bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace").splitlines():
+            if x.strip():
+                self._pkg_out.append(x)
+                self.win.log(x)
+
+    def _installed(self, code: int, cmd: list, keys: list = (), remove: bool = False):
         self.proc.deleteLater()
         self.proc = None
         self.win.bar_busy(False)
         if code in (126, 127):  # abgebrochen oder kein Polkit-Agent → im Terminal mit sudo
             self.win.log(t("pkg.fallback"))
             self._terminal(cmd)
+            self._watch(list(keys), remove)
+        elif code == 0:
+            self.win.set_status(t("pkg.done"))
         else:
-            self.win.set_status(t("pkg.done") if code == 0 else t("pkg.failed"))
+            why = packages.fail_reason("\n".join(getattr(self, "_pkg_out", [])))
+            self.win.set_status(t("pkg.failed") + (" – " + t(why) if why else ""))
+            if not self.win.logview.isVisible():
+                self.win.btn_log.setChecked(True)
         self.refresh_packages()
         self.win.refresh_gates()
+
+    def _watch(self, keys: list, remove: bool):
+        """Nach Installation im Terminal: alle 2 s nachsehen, bis das Programm da (bzw. weg) ist – max. 10 min."""
+        if not keys:
+            return
+        self._watch_left = 300
+        if not hasattr(self, "_watch_timer"):
+            self._watch_timer = QtCore.QTimer(self)
+            self._watch_timer.setInterval(2000)
+            self._watch_timer.timeout.connect(self._watch_tick)
+        self._watch_keys, self._watch_remove = list(keys), remove
+        self._watch_timer.start()
+
+    def _watch_tick(self):
+        self._watch_left -= 1
+        done = all(packages.installed(k) != self._watch_remove for k in self._watch_keys)
+        if done or self._watch_left <= 0:
+            self._watch_timer.stop()
+            if done:
+                self.win.set_status(t("pkg.done"))
+            self.refresh_packages()
+            self.win.refresh_gates()
 
     def _terminal(self, cmd: list):
         line = "cd /tmp && sudo " + " ".join(cmd) + "; echo; read -r -p 'Enter = schließen' _"
