@@ -2,7 +2,7 @@
 
 import json
 
-from . import launcher, model, theme, packages
+from . import launcher, model, packages, sysactions, theme
 from .i18n import t
 from .preview import DesktopPreview, render_pixmap
 from .qt import QtCore, QtWidgets, Qt
@@ -829,6 +829,13 @@ class LauncherPage(EditorPage):
             self.btn_use.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_use.clicked.connect(self.use_everywhere)
             c.layout().addWidget(self.btn_use, 0, Qt.AlignmentFlag.AlignLeft)
+            # Herunterfahren, Neustart … als Einträge für alle Launcher (sysactions.py)
+            c = self.card(lay, "card.sys")
+            self.sys_sw = Switch()
+            self.sys_sw.set_now(self.win.cfg.get("sys_actions", True))
+            self.sys_sw.toggled.connect(self.set_sys_actions)
+            c._add("sys.on", self.sys_sw, None, "tip.sys.on", None, label_key="sys.on")
+            self.switches.append(self.sys_sw)
             c = self.card(lay, "card.lmode")
             c.choice("mode", ("drun", "run"), "lmode.")
             c.toggle("name_search", tip="tip.name_search")
@@ -937,6 +944,13 @@ class LauncherPage(EditorPage):
 
     def preset_value(self, name):
         return launcher.preset(name, self.state)
+
+    def set_sys_actions(self, on: bool):
+        self.win.cfg["sys_actions"] = bool(on)
+        self.win.save_later()
+        self.win.log("")
+        sysactions.apply(bool(on), self.win.log, packages.installed("hyprlock"))
+        self.win.set_status(t("sys.done_on") if on else t("sys.done_off"))
 
     def do_apply(self):
         app = self.state["app"]

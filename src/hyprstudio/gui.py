@@ -4,7 +4,7 @@ import os
 import sys
 
 import hyprstudio
-from . import appearance, hardware, laptopkeys, launcher, model, reset, theme
+from . import appearance, hardware, laptopkeys, launcher, model, packages, reset, sysactions, theme
 from .i18n import t, set_lang
 from .gate import Gate, LauncherGate
 from .other import OtherPage
@@ -119,6 +119,7 @@ class MainWindow(QtWidgets.QWidget):
         self.hypr_page.show_section(self.cfg.get("hypr_section", "presets"))
         QtCore.QTimer.singleShot(0, self._first_look)
         QtCore.QTimer.singleShot(0, self._auto_laptop)
+        QtCore.QTimer.singleShot(0, self._auto_sysactions)
         cl.addWidget(self.stack, 1)
 
         foot = QtWidgets.QHBoxLayout()
@@ -364,6 +365,11 @@ class MainWindow(QtWidgets.QWidget):
         self.hypr_page.update_info()
         self.set_status(t("adv.set", name=t("fmtsw." + fmt)))
         self.log(t("adv.set", name=t("fmtsw." + fmt)))
+
+    def _auto_sysactions(self):
+        """Herunterfahren/Neustart … in allen Launchern (an, solange der Schalter nicht aus ist)."""
+        if self.cfg.get("sys_actions", True):
+            sysactions.apply(True, self.log, packages.installed("hyprlock"))
 
     def _auto_laptop(self):
         """Wie KDE: auf Laptops funktionieren Helligkeit, Lautstärke und Stumm von selbst."""

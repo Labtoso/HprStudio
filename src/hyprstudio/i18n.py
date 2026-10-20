@@ -367,6 +367,12 @@ TEXT["en"].update({'sec.updates': 'Updates', 'upd.title': 'Update Hyprland, Wayb
 TEXT["de"].update({"upd.newer1": "Version {ver} → {new}"})
 TEXT["en"].update({"upd.newer1": "Version {ver} → {new}"})
 
+TEXT["de"].update({'card.sys': 'Systembefehle', 'sys.on': 'Herunterfahren & Co. im Launcher', 'tip.sys.on': '„shutdown“ oder „herunterfahren“ eintippen und Enter fährt sofort herunter – genauso Neustart/Restart, Abmelden/Log out, Sperren/Lock. Gilt für Rofi, Wofi, Fuzzel und L Launcher, egal welche Sprache', 'sys.done_on': 'Systembefehle im Launcher an', 'sys.done_off': 'Systembefehle im Launcher aus'})
+TEXT["en"].update({'card.sys': 'System commands', 'sys.on': 'Shutdown & co. in the launcher', 'tip.sys.on': 'Type “shutdown” or “herunterfahren” and press Enter to shut down right away – also Restart/Neustart, Log out/Abmelden, Lock/Sperren. Works in Rofi, Wofi, Fuzzel and L Launcher, whatever the language', 'sys.done_on': 'System commands in the launcher on', 'sys.done_off': 'System commands in the launcher off'})
+
+TEXT["de"].update({"nav.program": "Einrichtung"})
+TEXT["en"].update({"nav.program": "Setup"})
+
 _lang = "en"
 
 

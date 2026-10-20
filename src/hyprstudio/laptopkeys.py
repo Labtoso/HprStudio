@@ -106,6 +106,9 @@ def cli() -> int:
     dev = hardware.detect()
     print(f"Hypr Studio: {hardware.label(dev)} ({'Laptop' if dev['laptop'] else 'kein Laptop'})")
     auto(s, print)
+    if cfg.get("sys_actions", True):  # Herunterfahren/Neustart … gleich nach der Installation in allen Launchern
+        from . import packages, sysactions
+        sysactions.apply(True, print, packages.installed("hyprlock"))
     cfg["hypr"] = s
     try:
         CONFIG.parent.mkdir(parents=True, exist_ok=True)
