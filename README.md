@@ -4,6 +4,8 @@
 
 Hypr Studio is a dark, rounded desktop app for Linux (Python + PySide6) by **LabtosoStudios**. You pick presets, move sliders and toggle switches, see the result in a live preview, and press **Apply**. Hypr Studio writes its own config files, includes them in yours and backs up everything it touches.
 
+> **Laptops:** the special keys – brightness, volume, mute, mic and media – work out of the box on Lenovo and other laptops, nothing to set up.
+>
 > Starts in **English** by default – switch to **German** via the gear icon (top left).
 
 ---
