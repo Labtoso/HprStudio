@@ -15,8 +15,9 @@ class PopupPick(unittest.TestCase):
     def test_pick_from_search_popup_reaches_the_page(self):
         """Regression 1.25.1: Auswahl im Such-Popup setzte nur die Anzeige, die Schrift wurde nie übernommen."""
         fc = widgets.FontCombo()
-        fams = [fc.itemText(i) for i in range(fc.count())]
-        fc.fill(fams[0] if fams else "")
+        fc.fill("")
+        for name in ("Test Sans", "Test Mono"):  # unabhängig davon, welche Schriften die Testumgebung kennt
+            fc.insertItem(0, name, ("font", name))
         got = []
         fc.chosen.connect(got.append)
         fc.showPopup()
