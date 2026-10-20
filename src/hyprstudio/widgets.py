@@ -751,13 +751,19 @@ class RoundPopups(QtCore.QObject):
 
 
 class SearchPopup(QtWidgets.QFrame):
-    """Aufklappliste mit Suchfeld oben – Tippen sucht sofort, Pfeile/Enter/Esc funktionieren."""
+    """Aufklappliste mit Suchfeld oben – Tippen sucht sofort, Pfeile/Enter/Esc funktionieren.
+    Schnell auch bei Hunderten Einträgen: Liste nur neu aufbauen, wenn sich die Einträge geändert haben,
+    gleich hohe Zeilen (keine Messung pro Eintrag), Filter gebündelt, Fenstergröße nur beim Öffnen setzen."""
     picked = Signal(int)
+    ROW = 30
+    ROWS = 12
 
     def __init__(self, combo):
         super().__init__(combo, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
                          | Qt.WindowType.NoDropShadowWindowHint)
         self.combo = combo
+        self._texts = None
+        self._low = []
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -769,30 +775,49 @@ class SearchPopup(QtWidgets.QFrame):
         lay.setSpacing(6)
         self.search = QtWidgets.QLineEdit()
         self.search.setClearButtonEnabled(True)
-        self.search.textChanged.connect(self._filter)
         self.search.installEventFilter(self)
         lay.addWidget(self.search)
         self.list = QtWidgets.QListWidget()
         self.list.setObjectName("PopList")
+        self.list.setUniformItemSizes(True)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.list.itemClicked.connect(self._choose)
         lay.addWidget(self.list)
+        # bei langen Listen kurz warten, bis das Tippen pausiert (sonst ruckelt jeder Buchstabe)
+        self._delay = QtCore.QTimer(self)
+        self._delay.setSingleShot(True)
+        self._delay.setInterval(70)
+        self._delay.timeout.connect(self._filter)
+        self.search.textChanged.connect(self._typed)
 
-    def open(self):
-        self.search.setPlaceholderText(t("search"))
+    def _build(self):
+        texts = [self.combo.itemText(i) for i in range(self.combo.count())]
+        if texts == self._texts:
+            return
+        self._texts = texts
+        self._low = [x.lower() for x in texts]
+        self.list.setUpdatesEnabled(False)
         self.list.clear()
-        for i in range(self.combo.count()):
-            it = QtWidgets.QListWidgetItem(self.combo.itemText(i))
+        size = QtCore.QSize(0, self.ROW)
+        for i, text in enumerate(texts):
+            it = QtWidgets.QListWidgetItem(text)
             it.setData(Qt.ItemDataRole.UserRole, i)
+            it.setSizeHint(size)
             for role in (Qt.ItemDataRole.FontRole, Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.ForegroundRole):
                 v = self.combo.itemData(i, role)
                 if v is not None:
                     it.setData(role, v)
             self.list.addItem(it)
+        self.list.setUpdatesEnabled(True)
+
+    def open(self):
+        self.search.setPlaceholderText(t("search"))
+        self._build()
         self.search.blockSignals(True)
         self.search.clear()
         self.search.blockSignals(False)
         self._filter()
+        self._place()
         cur = self.list.item(self.combo.currentIndex())
         if cur:
             self.list.setCurrentItem(cur)
@@ -805,20 +830,33 @@ class SearchPopup(QtWidgets.QFrame):
     def _visible(self) -> list:
         return [self.list.item(i) for i in range(self.list.count()) if not self.list.item(i).isHidden()]
 
-    def _filter(self, *_):
-        q = self.search.text().strip().lower()
-        for i in range(self.list.count()):
-            it = self.list.item(i)
-            it.setHidden(bool(q) and not all(w in it.text().lower() for w in q.split()))
-        vis = self._visible()
-        if q and vis:
-            self.list.setCurrentItem(vis[0])
-        self._place(len(vis))
+    def _typed(self, *_):
+        if len(self._low) > 150:
+            self._delay.start()
+        else:
+            self._filter()
 
-    def _place(self, n: int):
-        """Größe passt sich der Trefferzahl an; ist unten kein Platz, geht das Menü nach oben auf."""
-        row = max(28, self.list.sizeHintForRow(0) if self.list.count() else 28)
-        h_list = max(1, min(n, 12)) * row + 8
+    def _filter(self, *_):
+        self._delay.stop()
+        words = self.search.text().strip().lower().split()
+        self.list.setUpdatesEnabled(False)
+        first = None
+        for i, low in enumerate(self._low):
+            hit = all(w in low for w in words)
+            it = self.list.item(i)
+            if it.isHidden() == hit:
+                it.setHidden(not hit)
+            if hit and first is None:
+                first = it
+        self.list.setUpdatesEnabled(True)
+        if words and first is not None:
+            self.list.setCurrentItem(first)
+            self.list.scrollToItem(first)
+
+    def _place(self):
+        """Größe einmal beim Öffnen (nach der Eintragszahl); ist unten kein Platz, geht das Menü nach oben auf."""
+        n = len(self._low)
+        h_list = max(1, min(n, self.ROWS)) * self.ROW + 8
         w = max(self.combo.width(), 280)
         h = h_list + self.search.sizeHint().height() + 6 + 16
         self.list.setFixedHeight(h_list)
@@ -831,6 +869,8 @@ class SearchPopup(QtWidgets.QFrame):
         self.move(g)
 
     def _choose(self, it=None):
+        if self._delay.isActive():
+            self._filter()
         it = it or self.list.currentItem()
         if it is not None and not it.isHidden():
             self.picked.emit(it.data(Qt.ItemDataRole.UserRole))
