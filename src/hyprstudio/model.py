@@ -79,6 +79,7 @@ HYPR_DEFAULT = {
     "monitor_on": False, "monitor_mode": "preferred", "monitor_scale": "auto",
     "autostart": [], "autostart_waybar": False, "waybar_managed": False,
     "polkit_agent": False, "polkit_managed": False,  # hyprpolkitagent beim Start (Sonstiges › Polkit-Agent)
+    "laptop_keys": False, "laptop_managed": False, "vol_tool": "wpctl",  # Sonstiges › Laptop-Tasten
     "workspaces_on": False, "workspaces": [],  # Arbeitsflächen-Regeln (Name, Monitor, Lücken …)
     "skip_opts": [],  # vom Fehler-Fixer abgeschaltete Optionen, z. B. "decoration.blur.xray"
     "binds": [],  # leer = Hypr Studio schreibt keine Tastenkürzel
@@ -999,6 +1000,71 @@ def manage_waybar_autostart(hdir: Path, s: dict, log) -> int:
     return n
 
 
+# ---------- Laptop-Tasten (Helligkeit, Lautstärke, Stumm, Mikrofon, Medien) ----------
+
+LAPTOP_KEYS = ("XF86MonBrightnessUp", "XF86MonBrightnessDown", "XF86AudioRaiseVolume", "XF86AudioLowerVolume",
+               "XF86AudioMute", "XF86AudioMicMute", "XF86AudioPlay", "XF86AudioPause", "XF86AudioNext",
+               "XF86AudioPrev")
+VOLUME_CMDS = {  # (lauter, leiser, stumm, Mikrofon stumm)
+    "wpctl": ("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+", "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-",
+              "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
+    "pactl": ("pactl set-sink-volume @DEFAULT_SINK@ +5%", "pactl set-sink-volume @DEFAULT_SINK@ -5%",
+              "pactl set-sink-mute @DEFAULT_SINK@ toggle", "pactl set-source-mute @DEFAULT_SOURCE@ toggle"),
+}
+BRIGHT_UP, BRIGHT_DOWN = "brightnessctl -e4 -n2 set 5%+", "brightnessctl -e4 -n2 set 5%-"
+
+
+def laptop_binds(s: dict) -> list:
+    """Wie im offiziellen Beispiel: gesperrt (geht auch auf dem Sperrbildschirm) und mit Wiederholung."""
+    up, down, mute, mic = VOLUME_CMDS.get(s["vol_tool"], VOLUME_CMDS["wpctl"])
+    return [_bind([], "XF86MonBrightnessUp", "exec", BRIGHT_UP, LR),
+            _bind([], "XF86MonBrightnessDown", "exec", BRIGHT_DOWN, LR),
+            _bind([], "XF86AudioRaiseVolume", "exec", up, LR), _bind([], "XF86AudioLowerVolume", "exec", down, LR),
+            _bind([], "XF86AudioMute", "exec", mute, ["locked"]), _bind([], "XF86AudioMicMute", "exec", mic, ["locked"]),
+            _bind([], "XF86AudioPlay", "exec", "playerctl play-pause", ["locked"]),
+            _bind([], "XF86AudioPause", "exec", "playerctl play-pause", ["locked"]),
+            _bind([], "XF86AudioNext", "exec", "playerctl next", ["locked"]),
+            _bind([], "XF86AudioPrev", "exec", "playerctl previous", ["locked"])]
+
+
+def is_laptop_bind(b: dict) -> bool:
+    return not b.get("mods") and b.get("key") in LAPTOP_KEYS
+
+
+def all_binds(s: dict) -> list:
+    """Eigene Kürzel + Laptop-Tasten (Schalter an: gleiche Tasten aus der Liste fallen weg, nichts doppelt)."""
+    if not s.get("laptop_keys"):
+        return s["binds"]
+    return [b for b in s["binds"] if not is_laptop_bind(b)] + laptop_binds(s)
+
+
+def foreign_key_lines(text: str, fmt: str) -> list:
+    """Zeilen in der Hauptdatei, die eine der Laptop-Tasten ohne Modifikator selbst belegen."""
+    import re
+    out = []
+    for i, ln in enumerate(text.splitlines()):
+        st = ln.strip()
+        if fmt == "lua":
+            m = re.match(r'hl\.bind\(\s*"(XF86\w+)"', st)
+        else:
+            m = re.match(r"bind\w*\s*=\s*,\s*(XF86\w+)\s*,", st)
+        if m and m.group(1) in LAPTOP_KEYS:
+            out.append(i)
+    return out
+
+
+def manage_laptop_keys(hdir: Path, s: dict, log) -> int:
+    """Schalter an: gleiche Tasten in hyprland.lua/.conf auskommentieren, sonst lösen sie doppelt aus."""
+    if not (s.get("laptop_managed") and s.get("laptop_keys")):
+        return 0
+    fmt = hypr_format(hdir)
+    main = hdir / f"hyprland.{fmt}" if fmt else None
+    if not (main and main.is_file()):
+        return 0
+    idx = foreign_key_lines(main.read_text(encoding="utf-8", errors="replace"), fmt)
+    return _comment_lines(main, idx, "-- [Hypr Studio] " if fmt == "lua" else "# [Hypr Studio] ", log)
+
+
 SMART_GAPS_LUA = '''
 -- Keine Lücken bei nur einem Fenster
 hl.workspace_rule({ workspace = "w[tv1]", gaps_out = 0, gaps_in = 0 })
@@ -1068,7 +1134,7 @@ def hypr_lua(s: dict) -> str:
     if cmds:
         lines += ["", 'hl.on("hyprland.start", function ()']
         lines += [f"    hl.exec_cmd({_lua_str(c)})" for c in cmds] + ["end)"]
-    binds = [x for x in s["binds"] if bind_ok(x)]
+    binds = [x for x in all_binds(s) if bind_ok(x)]
     if binds:
         lines += ["", "-- Tastenkürzel"] + [bind_lua(x) for x in binds]
     lines += L_LAUNCHER_LUA.splitlines()
@@ -1108,7 +1174,7 @@ def hypr_conf(s: dict) -> str:
     if s["monitor_on"]:
         out.append(f"monitor = , {s['monitor_mode']}, auto, {s['monitor_scale']}")
     out += [f"exec-once = {c}" for c in _autostart(s)]
-    binds = [x for x in s["binds"] if bind_ok(x)]
+    binds = [x for x in all_binds(s) if bind_ok(x)]
     if binds:
         out += ["", "# Tastenkürzel"] + [ln for x in binds for ln in bind_conf(x)]
     return "\n".join(out) + "\n"
@@ -1196,6 +1262,7 @@ def apply_hypr(s: dict, hdir: Path, log) -> tuple[bool, str]:
         log(f"+ {main}: {line}")
     manage_waybar_autostart(hdir, s, log)
     manage_polkit_autostart(hdir, s, log)
+    manage_laptop_keys(hdir, s, log)
     run(["hyprctl", "reload"], log)
     return True, fmt
 
