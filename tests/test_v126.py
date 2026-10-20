@@ -9,17 +9,18 @@ from hyprstudio import fonts, hardware, model  # noqa: E402
 
 class LaptopKeys(unittest.TestCase):
     def test_binds_like_official_example(self):
+        from hyprstudio import laptopkeys
         s = model.hypr_state({"laptop_keys": True, "binds": [model._bind([], "XF86AudioMute", "exec", "old")]})
-        lua = model.hypr_lua(s)
+        lua = laptopkeys.content(s, "lua")
         self.assertIn('hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"), '
                       '{ locked = true, repeating = true })', lua)
         self.assertIn('hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+")',
                       lua)
-        self.assertEqual(lua.count('hl.bind("XF86AudioMute"'), 1)  # eigenes altes Kürzel fällt weg
-        self.assertNotIn('"old"', lua)
-        conf = model.hypr_conf(dict(s, vol_tool="pactl"))
-        self.assertIn("pactl set-sink-mute @DEFAULT_SINK@ toggle", conf)
-        self.assertNotIn("XF86", model.hypr_lua(model.hypr_state(None)))
+        self.assertEqual(lua.count('hl.bind("XF86AudioMute"'), 1)
+        main = model.hypr_lua(s)  # Hauptdatei: keine Laptop-Tasten, altes eigenes Kürzel fällt weg
+        self.assertNotIn("XF86", main)
+        self.assertIn("pactl set-sink-mute @DEFAULT_SINK@ toggle", laptopkeys.content(dict(s, vol_tool="pactl"), "conf"))
+        self.assertIn("ausgeschaltet", laptopkeys.content(dict(s, laptop_keys=False), "lua"))
 
     def test_foreign_keys_commented(self):
         with tempfile.TemporaryDirectory() as d:

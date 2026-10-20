@@ -38,7 +38,7 @@ A small launcher that only shows apps whose **name starts with what you type** �
 ### More
 - **Repair** – reads `hyprctl configerrors` and fixes or comments out broken lines
 - **Install / uninstall** helpers (Waybar, launchers, Kitty, hyprpaper, hyprcursor, fastfetch …)
-- **Laptop keys** – detects your device (e.g. *Lenovo IdeaPad 5*) and makes brightness, volume, mute, mic and media keys work like on KDE (brightnessctl, wpctl/pactl, playerctl), with test buttons
+- **Laptop keys work automatically** – like on KDE: right after installing, Hypr Studio detects your laptop (e.g. *Lenovo IdeaPad 5*) and makes brightness, volume, mute, mic and media keys work (brightnessctl, wpctl/pactl, playerctl) – nothing to set up
 - **Polkit agent** – install `hyprpolkitagent`, start it with Hyprland (`systemctl --user start hyprpolkitagent`, never twice) or right now, so apps like Firewall can ask for your password
 - **Kitty** terminal styling incl. Fastfetch and own commands on start
 - **Light / Dark** colour scheme for all apps – GTK, libadwaita, Electron and Qt/KDE apps like **Kate and KWrite** (KDE colour scheme + `QT_QPA_PLATFORMTHEME` under Hyprland); mouse & touchpad settings, backups browser
@@ -52,6 +52,8 @@ A small launcher that only shows apps whose **name starts with what you type** �
 - Optional: waybar, rofi / wofi / fuzzel, kitty, hyprpaper, hyprcursor, hyprlock, plasma-integration
 
 ## Installation
+**From a release:** download `HyprStudio-<version>.zip`, extract it and run `sh Install.sh` (or double-click *Install Hypr Studio*). `uninstall.sh` removes it again.
+
 From the `installer/` folder:
 
 | Way | How |

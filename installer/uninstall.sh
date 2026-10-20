@@ -35,8 +35,9 @@ case "$ans" in
       [ -f "$f" ] || continue
       if grep -q "hyprstudio" "$f"; then
         cp "$f" "$f.before-uninstall"
-        sed -i -e "/^[#-]* *$MARK$/d" -e '/^require("hyprstudio")$/d' \
-               -e '\#^source = ~/.config/hypr/hyprstudio.conf$#d' "$f"
+        sed -i -e "/^[#-]* *$MARK$/d" -e "/^[#-]* *$MARK – Laptop-Tasten$/d" \
+               -e '/^require("hyprstudio")$/d' -e '/^require("hyprstudio_laptop")$/d' \
+               -e '\#^source = ~/.config/hypr/hyprstudio.conf$#d' -e '\#^source = ~/.config/hypr/hyprstudio_laptop.conf$#d' "$f"
         echo "    Include removed: $f (copy: $f.before-uninstall)"
       fi
     done

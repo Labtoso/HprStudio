@@ -24,6 +24,8 @@ if command -v pacman >/dev/null 2>&1 && command -v makepkg >/dev/null 2>&1 && [ 
   echo "==> Arch detected: building pacman package"
   makepkg -sf --noconfirm
   sudo pacman -U --noconfirm "$HS_WORK"/labtoso-hyprstudio-*.pkg.tar.zst
+  # Laptop: brightness, volume and mute keys work right away (like on KDE)
+  hypr-studio --laptop-keys || true
   echo "==> Done: Hypr Studio is in your app menu"
   exit 0
 fi
@@ -40,6 +42,12 @@ if ! need_qt; then
   elif command -v pacman >/dev/null; then pacman -S --needed --noconfirm pyside6
   fi
 fi
+# brightness and media keys
+if command -v apt-get >/dev/null; then apt-get install -y brightnessctl playerctl || true
+elif command -v dnf >/dev/null; then dnf install -y brightnessctl playerctl || true
+elif command -v zypper >/dev/null; then zypper -n in brightnessctl playerctl || true
+elif command -v pacman >/dev/null; then pacman -S --needed --noconfirm brightnessctl playerctl || true
+fi
 tar -xzf "$TARBALL" -C "$HS_WORK"
 SRC="$(ls -d "$HS_WORK"/labtoso-hyprstudio-*/ | head -n1)"
 install -d /usr/lib/labtoso-hyprstudio
@@ -52,4 +60,6 @@ for s in 16 32 48 64 128 256; do
   install -Dm644 "$SRC/packaging/icons/$s.png" "/usr/share/icons/hicolor/${s}x${s}/apps/de.labtosostudios.hyprstudio.png"
 done
 gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
+# Laptop: brightness, volume and mute keys work right away (as the user, not as root)
+if [ -n "$SUDO_USER" ]; then sudo -u "$SUDO_USER" -H /usr/bin/hypr-studio --laptop-keys || true; fi
 echo "==> Done: Hypr Studio is in your app menu"
