@@ -61,8 +61,8 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "polkit", "laptop", "kitty", "look", "scroll", "tools", "backups")
-    NAV_GROUPS = (("system", ["fix", "install", "polkit", "tools", "backups"]),
+    SECTIONS = ("fix", "install", "updates", "polkit", "laptop", "kitty", "look", "scroll", "tools", "backups")
+    NAV_GROUPS = (("system", ["fix", "install", "updates", "polkit", "tools", "backups"]),
                   ("devices", ["laptop", "scroll"]), ("look", ["look", "kitty"]))
     KIND = "other"
 
@@ -240,6 +240,43 @@ class OtherPage(QtWidgets.QWidget):
         ll.addWidget(self.look_card)
         ll.addStretch()
 
+        # --- Updates: Hyprland, Waybar, Launcher einzeln oder alles ---
+        self.p_updates, upl = self._page()
+        self.up_card = Card("upd.title", self)
+        head = QtWidgets.QHBoxLayout()
+        self.up_state = QtWidgets.QLabel()
+        self.up_state.setObjectName("RowLabel")
+        self.up_check = QtWidgets.QPushButton()
+        self.up_check.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.up_check.clicked.connect(lambda: self.refresh_updates(force=True))
+        self.up_all = QtWidgets.QPushButton()
+        self.up_all.setObjectName("Primary")
+        self.up_all.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.up_all.clicked.connect(lambda: self.run_update(None))
+        head.addWidget(self.up_state, 1)
+        head.addWidget(self.up_check)
+        head.addWidget(self.up_all)
+        self.up_card.layout().addLayout(head)
+        self.up_rows = {}
+        for group in packages.UPDATE_GROUPS:
+            ver = QtWidgets.QLabel()
+            ver.setObjectName("RowLabel")
+            btn = QtWidgets.QPushButton()
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _=False, g=group: self.run_update(g))
+            row = QtWidgets.QWidget()
+            row.setMinimumWidth(520)  # Knöpfe untereinander in einer Spalte
+            rl = QtWidgets.QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.addWidget(ver, 1)
+            rl.addWidget(btn)
+            self.up_card._add("upd." + group, row, label_key="upd." + group)
+            self.up_rows[group] = (ver, btn)
+        upl.addWidget(self.up_card)
+        upl.addStretch()
+        self._up_info = None
+        self._up_job = None
+
         # --- Polkit-Agent: ohne ihn können Programme unter Hyprland nicht nach dem Admin-Passwort fragen ---
         self.p_polkit, pkl = self._page()
         self.pk_card = Card("polkit.title", self)
@@ -344,7 +381,7 @@ class OtherPage(QtWidgets.QWidget):
                       "cursor": Gate(self.cursor, "hyprcursor", win),
                       "lock": Gate(self.lock, "hyprlock", win)}
         self.stack.addWidget(self.gates["kitty"])
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "polkit": self.p_polkit, "laptop": self.p_laptop, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "updates": self.p_updates, "polkit": self.p_polkit, "laptop": self.p_laptop, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
                       "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
@@ -378,6 +415,8 @@ class OtherPage(QtWidgets.QWidget):
             self.refresh_scroll()
         if key == "polkit":
             self.refresh_polkit()
+        if key == "updates":
+            self.refresh_updates()
         if key == "laptop":
             self.refresh_laptop()
         if key == "backups":
@@ -423,6 +462,73 @@ class OtherPage(QtWidgets.QWidget):
             self._apply_hypr()
             return True
         return False
+
+    # ----- Updates -----
+    def refresh_updates(self, force: bool = False):
+        """Versionen im Hintergrund holen (checkupdates kann dauern) – die Seite bleibt bedienbar."""
+        self.up_card.retranslate()
+        self.up_check.setText(t("upd.check"))
+        self.up_all.setText(t("upd.all"))
+        self.up_all.setToolTip(t("tip.upd.all"))
+        if self._up_job is not None:
+            return
+        if self._up_info is not None and not force:
+            self._show_updates()
+            return
+        self.up_state.setText(t("upd.checking"))
+        pm = packages.manager()
+        names = [p for ps in packages.UPDATE_GROUPS.values() for p in ps]
+
+        def work(_log):
+            return packages.versions(names, pm), packages.newer(pm)
+        from .paper_page import Job
+        self._up_job = Job(work, self)
+        self._up_job.result.connect(self._updates_loaded)
+        self._up_job.start()
+
+    def _updates_loaded(self, r):
+        self._up_job = None
+        self._up_info = r if not isinstance(r, Exception) else ({}, None)
+        self._show_updates()
+
+    def _show_updates(self):
+        have, new = self._up_info
+        pm = packages.manager()
+        pending = 0
+        for group, (ver, btn) in self.up_rows.items():
+            pkgs = [p for p in packages.UPDATE_GROUPS[group] if p in have]
+            btn.setText(t("upd.one"))
+            btn.setToolTip(t("tip.upd.arch") if pm == "pacman" else "")
+            if not pkgs:
+                ver.setText(t("upd.none"))
+                btn.setEnabled(False)
+                continue
+            main = pkgs[0]
+            ups = [p for p in pkgs if new and p in new]
+            pending += len(ups)
+            if new is None:
+                ver.setText(t("upd.ver", ver=have[main]))
+            elif ups:
+                ver.setText(t("upd.newer1" if len(ups) == 1 else "upd.newer", ver=have[main],
+                              new=new.get(main, new[ups[0]]), n=len(ups)))
+            else:
+                ver.setText(t("upd.current", ver=have[main]))
+            btn.setEnabled(bool(ups) or new is None)
+        if new is None:
+            self.up_state.setText(t("upd.unknown"))
+        else:
+            self.up_state.setText(t("upd.pending", n=pending) if pending else t("upd.uptodate"))
+
+    def run_update(self, group):
+        pm = packages.manager()
+        have = (self._up_info or ({}, None))[0]
+        pkgs = [p for p in packages.UPDATE_GROUPS.get(group, []) if p in have] if group else []
+        cmd = packages.update_command(pkgs, pm, everything=group is None)
+        if not cmd:
+            self.win.set_status(t("pkg.nopm"))
+            return
+        self._up_info = None  # nach dem Update neu prüfen
+        self.run_root(cmd)
 
     # ----- Polkit-Agent -----
     def refresh_polkit(self):
@@ -672,9 +778,13 @@ class OtherPage(QtWidgets.QWidget):
         cmd = (packages.remove_command(keys, pm) if remove else packages.command(keys, pm)) if pm else []
         if not cmd:
             return
-        self.win.log("")
         for k in keys:
             self.pkg_rows[k][0].setChecked(False)
+        self.run_root(cmd, keys, remove)
+
+    def run_root(self, cmd: list, keys: list = (), remove: bool = False):
+        """Befehl als root: pkexec mit Passwortfenster, ohne Polkit-Agent im Terminal mit sudo."""
+        self.win.log("")
         if model.DRY:
             self.win.log("$ pkexec " + " ".join(cmd) + "  (Testmodus)")
             if remove:

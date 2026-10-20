@@ -150,6 +150,74 @@ def remove_command(keys: list, pm: str) -> list:
     }[pm]
 
 
+# ---------- Updates (Sonstiges › Updates) ----------
+
+UPDATE_GROUPS = {  # Gruppe → Pakete (nur installierte werden aktualisiert)
+    "hyprland": ["hyprland", "hyprlock", "hypridle", "hyprpaper", "hyprcursor", "hyprpicker", "hyprpolkitagent",
+                 "hyprsunset", "xdg-desktop-portal-hyprland", "hyprutils", "hyprlang", "hyprgraphics", "aquamarine"],
+    "waybar": ["waybar"],
+    "launcher": ["rofi", "rofi-wayland", "wofi", "fuzzel"],
+}
+
+
+def versions(pkgs: list, pm: str | None) -> dict:
+    """Installierte Versionen {Paket: Version}; nicht installierte fehlen."""
+    if model.DRY:
+        demo = {"hyprland": "0.55.1-1", "hyprlock": "0.9.1-1", "hyprpaper": "0.7.5-1", "waybar": "0.13.0-1",
+                "rofi": "1.7.9-1"}
+        return {p: demo[p] for p in pkgs if p in demo}
+    cmd = {"pacman": ["pacman", "-Q", *pkgs], "apt": ["dpkg-query", "-W", "-f=${Package} ${Version}\n", *pkgs],
+           "dnf": ["rpm", "-q", "--qf", "%{NAME} %{VERSION}-%{RELEASE}\n", *pkgs],
+           "zypper": ["rpm", "-q", "--qf", "%{NAME} %{VERSION}-%{RELEASE}\n", *pkgs]}.get(pm)
+    if not cmd:
+        return {}
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=15).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    res = {}
+    for ln in out.splitlines():
+        parts = ln.split()
+        if len(parts) == 2 and parts[0] in pkgs:
+            res[parts[0]] = parts[1]
+    return res
+
+
+def newer(pm: str | None) -> dict | None:
+    """Verfügbare neuere Versionen {Paket: neu} – Arch über checkupdates (pacman-contrib, ändert nichts am
+    System); None = lässt sich nicht prüfen."""
+    if model.DRY:
+        return {"hyprland": "0.56.0-1", "waybar": "0.13.1-1"}
+    if pm == "pacman" and shutil.which("checkupdates"):
+        try:
+            p = subprocess.run(["checkupdates"], capture_output=True, text=True, timeout=90)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        res = {}
+        for ln in p.stdout.splitlines():  # „paket alt -> neu“
+            parts = ln.split()
+            if len(parts) >= 4 and parts[2] == "->":
+                res[parts[0]] = parts[3]
+        return res
+    return None
+
+
+def update_command(pkgs: list, pm: str | None, everything: bool = False) -> list:
+    """Befehl für pkexec. Arch: immer mit -Syu (Teil-Updates sind dort nicht unterstützt)."""
+    if not pm or (not everything and not pkgs):
+        return []
+    if pm == "pacman":
+        return ["pacman", "-Syu", "--noconfirm"] + ([] if everything else ["--needed", *pkgs])
+    if pm == "apt":
+        up = "apt-get -y upgrade" if everything else "apt-get install -y --only-upgrade " + " ".join(pkgs)
+        return ["sh", "-c", "apt-get update && " + up]
+    if pm == "dnf":
+        return ["dnf", "upgrade", "-y", *([] if everything else pkgs)]
+    if pm == "zypper":
+        return ["zypper", "-n", "up", *([] if everything else pkgs)]
+    return []
+
+
 def command(keys: list, pm: str) -> list:
     """Befehl für pkexec (läuft als root, ohne Rückfrage im Terminal)."""
     pkgs = pkg_names(keys, pm)

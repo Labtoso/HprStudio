@@ -361,6 +361,12 @@ TEXT["en"].update({'nav.look': 'Look', 'nav.control': 'Controls', 'nav.desktop':
 TEXT["de"].update({"paper.favs": "{n} Favoriten"})
 TEXT["en"].update({"paper.favs": "{n} favourites"})
 
+TEXT["de"].update({'sec.updates': 'Updates', 'upd.title': 'Hyprland, Waybar & Launcher aktualisieren', 'upd.hyprland': 'Hyprland', 'upd.waybar': 'Waybar', 'upd.launcher': 'Launcher', 'upd.check': 'Nach Updates suchen', 'upd.all': 'Alles aktualisieren', 'upd.one': 'Aktualisieren', 'upd.checking': 'Suche nach Updates …', 'upd.none': 'nicht installiert', 'upd.ver': 'Version {ver}', 'upd.current': 'Version {ver} – aktuell', 'upd.newer': 'Version {ver} → {new} ({n} Pakete)', 'upd.pending': '{n} Updates verfügbar', 'upd.uptodate': 'Alles aktuell', 'upd.unknown': 'Neue Versionen lassen sich hier nicht prüfen (Arch: Paket pacman-contrib) – Aktualisieren geht trotzdem', 'tip.upd.all': 'Aktualisiert das ganze System (pacman -Syu bzw. apt/dnf/zypper)', 'tip.upd.arch': 'Arch unterstützt keine Teil-Updates: dabei wird das ganze System mit aktualisiert (pacman -Syu)'})
+TEXT["en"].update({'sec.updates': 'Updates', 'upd.title': 'Update Hyprland, Waybar & launchers', 'upd.hyprland': 'Hyprland', 'upd.waybar': 'Waybar', 'upd.launcher': 'Launcher', 'upd.check': 'Check for updates', 'upd.all': 'Update everything', 'upd.one': 'Update', 'upd.checking': 'Checking for updates …', 'upd.none': 'not installed', 'upd.ver': 'Version {ver}', 'upd.current': 'Version {ver} – up to date', 'upd.newer': 'Version {ver} → {new} ({n} packages)', 'upd.pending': '{n} updates available', 'upd.uptodate': 'Everything is up to date', 'upd.unknown': "New versions can't be checked here (Arch: package pacman-contrib) – updating still works", 'tip.upd.all': 'Updates the whole system (pacman -Syu or apt/dnf/zypper)', 'tip.upd.arch': 'Arch does not support partial updates: the whole system is updated as well (pacman -Syu)'})
+
+TEXT["de"].update({"upd.newer1": "Version {ver} → {new}"})
+TEXT["en"].update({"upd.newer1": "Version {ver} → {new}"})
+
 _lang = "en"
 
 
