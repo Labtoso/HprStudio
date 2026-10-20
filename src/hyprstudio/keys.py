@@ -402,9 +402,13 @@ class BindEditor(QtWidgets.QWidget):
         self.changed.emit()
 
     def _filter(self, *_):
-        q = self.search.text().strip().lower()
+        words = self.search.text().strip().lower().split()
+        self.setUpdatesEnabled(False)  # alle Zeilen auf einmal umschalten statt bei jeder neu zu zeichnen
         for r in self.rows:
-            r.setVisible(not q or all(w in r.text() for w in q.split()))
+            show = not words or all(w in r.text() for w in words)
+            if r.isVisibleTo(self) != show:
+                r.setVisible(show)
+        self.setUpdatesEnabled(True)
 
     def read(self) -> list:
         return [r.value() for r in self.rows]

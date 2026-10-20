@@ -286,9 +286,16 @@ def main(argv) -> int:
     w.setFixedSize(s["width"], lst.height() + 2 * pad + edit.sizeHint().height() + lay.spacing() + 4)
 
     shown = []
+    icons = {}  # Symbole nur einmal suchen (QIcon.fromTheme pro Buchstabe und App war der Bremsklotz)
+
+    def icon(a):
+        if a["id"] not in icons:
+            icons[a["id"]] = QtGui.QIcon(a["icon"]) if os.path.isabs(a["icon"]) else QtGui.QIcon.fromTheme(a["icon"])
+        return icons[a["id"]]
 
     def refresh(*_):
         shown[:] = filter_apps(apps, edit.text(), history, s["insensitive"])
+        lst.setUpdatesEnabled(False)
         lst.clear()
         for a in shown:
             it = QtWidgets.QListWidgetItem(a["name"])
@@ -297,9 +304,9 @@ def main(argv) -> int:
                 if s["grid"]:
                     it.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
             if s["icons"] and a["icon"]:
-                ico = QtGui.QIcon(a["icon"]) if os.path.isabs(a["icon"]) else QtGui.QIcon.fromTheme(a["icon"])
-                it.setIcon(ico)
+                it.setIcon(icon(a))
             lst.addItem(it)
+        lst.setUpdatesEnabled(True)
         if shown:
             lst.setCurrentRow(0)
 
