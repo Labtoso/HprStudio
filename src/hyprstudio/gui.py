@@ -10,7 +10,8 @@ from .gate import Gate, LauncherGate
 from .other import OtherPage
 from .pages import HyprPage, LauncherPage, WaybarPage
 from .qt import QtCore, QtGui, QtWidgets, Qt
-from .widgets import ResetDialog, RoundPopups, Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
+from .widgets import (ResetDialog, RoundPopups, Segmented, SettingsPanel, Switch, app_icon, draw_icon, load_cfg,
+                      save_cfg)
 
 
 TABS = ("hypr", "waybar", "launcher", "other")
@@ -399,6 +400,9 @@ class MainWindow(QtWidgets.QWidget):
             pg.apply_theme(self.accent())
         if hasattr(self, "other_page"):
             self.other_page.apply_theme(self.accent())
+        for sw in self.findChildren(Switch):  # wirklich jeder Schalter in der Akzentfarbe
+            sw.accent = self.accent()
+            sw.update()
 
     def retranslate(self):
         self.gear.setToolTip(t("settings"))

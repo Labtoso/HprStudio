@@ -4,7 +4,17 @@ THEMES = {
     "blue": "#3d8bfd",
     "teal": "#22b8cf",
     "violet": "#8b7cf6",
+    "orange": "#ff9248",
+    "white": "#eef2f7",
+    "mint": "#6fdcb4",
 }
+
+
+def on_accent(accent: str) -> str:
+    """Schrift auf der Akzentfarbe: dunkel auf hellen Farben (Weiß, Mint, Orange), sonst weiß."""
+    h = accent.lstrip("#")[:6]
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return BG if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 else "#ffffff"
 
 BG = "#0e131a"
 SURFACE = "#151c26"
@@ -25,7 +35,7 @@ def palette(accent: str):
                       (P.ColorRole.AlternateBase, SURFACE2), (P.ColorRole.Text, TEXT), (P.ColorRole.Button, SURFACE2),
                       (P.ColorRole.ButtonText, TEXT), (P.ColorRole.ToolTipBase, SURFACE2),
                       (P.ColorRole.ToolTipText, TEXT), (P.ColorRole.Highlight, accent),
-                      (P.ColorRole.HighlightedText, "#ffffff"), (P.ColorRole.PlaceholderText, MUTED),
+                      (P.ColorRole.HighlightedText, on_accent(accent)), (P.ColorRole.PlaceholderText, MUTED),
                       (P.ColorRole.Link, accent), (P.ColorRole.Mid, BORDER), (P.ColorRole.Dark, BG),
                       (P.ColorRole.Light, SURFACE2), (P.ColorRole.Midlight, SURFACE2), (P.ColorRole.Shadow, "#000000")):
         pal.setColor(role, c(col))
@@ -35,6 +45,7 @@ def palette(accent: str):
 
 
 def qss(accent: str) -> str:
+    on = on_accent(accent)
     return f"""
     QWidget {{ color: {TEXT}; font-size: 10pt; }}
     #Root {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 16px; }}
@@ -65,7 +76,7 @@ def qss(accent: str) -> str:
                                    selection-background-color: {accent}; outline: none; padding: 4px; }}
     QMenu {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px; color: {TEXT}; }}
     QMenu::item {{ padding: 7px 22px 7px 14px; border-radius: 8px; background: transparent; }}
-    QMenu::item:selected {{ background: {accent}; color: #ffffff; }}
+    QMenu::item:selected {{ background: {accent}; color: {on}; }}
     QMenu::item:disabled {{ color: {MUTED}; }}
     QMenu::separator {{ height: 1px; background: {BORDER}; margin: 5px 8px; }}
     QMenu::section {{ color: {MUTED}; padding: 6px 14px 2px 14px; font-weight: 600; }}
@@ -73,7 +84,7 @@ def qss(accent: str) -> str:
     QFileDialog QTreeView, QFileDialog QListView, QColorDialog QListView {{ background: {BG};
         border: 1px solid {BORDER}; border-radius: 10px; outline: none; }}
     QFileDialog QTreeView::item, QFileDialog QListView::item {{ padding: 3px; }}
-    QFileDialog QTreeView::item:selected, QFileDialog QListView::item:selected {{ background: {accent}; color: #ffffff; }}
+    QFileDialog QTreeView::item:selected, QFileDialog QListView::item:selected {{ background: {accent}; color: {on}; }}
     QHeaderView::section {{ background: {SURFACE2}; color: {MUTED}; border: none; border-right: 1px solid {BORDER};
         padding: 6px 8px; }}
     QFileDialog QToolButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px; padding: 4px; }}
@@ -83,7 +94,7 @@ def qss(accent: str) -> str:
     QListWidget#PopList {{ background: transparent; border: none; outline: none; }}
     QListWidget#PopList::item {{ border-radius: 8px; padding: 5px 8px; }}
     QListWidget#PopList::item:hover {{ background: {SURFACE2}; }}
-    QListWidget#PopList::item:selected {{ background: {accent}; color: #ffffff; }}
+    QListWidget#PopList::item:selected {{ background: {accent}; color: {on}; }}
     QComboBox QAbstractItemView::item {{ border-radius: 6px; padding: 4px 6px; }}
     QListWidget#ModList {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px; outline: none; }}
     QListWidget#ModList::item {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px;
@@ -94,12 +105,12 @@ def qss(accent: str) -> str:
     QPushButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 8px 16px; }}
     QPushButton:hover {{ border-color: {accent}; }}
     QPushButton:disabled {{ color: #4d5a6b; border-color: {SURFACE2}; }}
-    QPushButton#Primary {{ background: {accent}; border: 1px solid {accent}; color: #ffffff; font-weight: 600; }}
+    QPushButton#Primary {{ background: {accent}; border: 1px solid {accent}; color: {on}; font-weight: 600; }}
     QPushButton#Primary:hover {{ background: {accent}; border-color: #ffffff; }}
     QPushButton#Primary:disabled {{ background: {SURFACE2}; border-color: {SURFACE2}; color: #4d5a6b; }}
     QPushButton#Danger:hover {{ border-color: {DANGER}; color: {DANGER}; }}
     QPushButton#Outline {{ background: transparent; border: 1px solid {accent}; color: {accent}; font-weight: 600; }}
-    QPushButton#Outline:hover {{ background: {accent}; color: #ffffff; }}
+    QPushButton#Outline:hover {{ background: {accent}; color: {on}; }}
     QPushButton#DangerFill {{ background: transparent; border: 1px solid {DANGER}; color: {DANGER}; font-weight: 600; }}
     QPushButton#DangerFill:hover {{ background: {DANGER}; color: #ffffff; }}
     QPushButton#DangerFill:disabled {{ border-color: {SURFACE2}; color: #4d5a6b; background: transparent; }}
@@ -111,7 +122,7 @@ def qss(accent: str) -> str:
     QCheckBox#Sure {{ color: {DANGER}; font-weight: 600; }}
     QCheckBox#Sure::indicator:checked {{ background: {DANGER}; border-color: {DANGER}; }}
     QPushButton#Seg {{ background: transparent; border: none; border-radius: 8px; padding: 6px 14px; color: {MUTED}; }}
-    QPushButton#Seg:checked {{ background: {accent}; color: #ffffff; font-weight: 600; }}
+    QPushButton#Seg:checked {{ background: {accent}; color: {on}; font-weight: 600; }}
     #SegBox {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; }}
     QToolButton {{ background: transparent; border: none; border-radius: 8px; padding: 4px; }}
     QToolButton:hover {{ background: {SURFACE2}; }}

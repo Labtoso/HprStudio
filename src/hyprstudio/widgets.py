@@ -183,7 +183,8 @@ class Switch(QtWidgets.QAbstractButton):
         d = r.height() - 6
         x = r.left() + 3 + (r.width() - d - 6) * self._pos
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QtGui.QColor("#ffffff"))
+        # Knopf: auf heller Akzentfarbe (Weiß, Mint) dunkel, sonst weiß – sonst ist er nicht zu sehen
+        p.setBrush(QtGui.QColor(theme.on_accent(self.accent) if self._pos >= 0.5 else "#ffffff"))
         p.drawEllipse(QtCore.QRectF(x, r.top() + 3, d, d))
         p.end()
 
@@ -589,7 +590,7 @@ class SettingsPanel(QtWidgets.QFrame):
             b = QtWidgets.QPushButton()
             b.setFixedSize(38, 38)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setToolTip(name.capitalize())
+            b.setProperty("tipkey", "accent." + name)
             b.clicked.connect(lambda _=False, n=name: self.theme_changed.emit(n))
             self.theme_btns[name] = b
             row2.addWidget(b)
@@ -667,7 +668,8 @@ class SettingsPanel(QtWidgets.QFrame):
         self.fmt_state.setText(t("adv.found", name=t("fmt." + (found or "none"))))
         self.lang_btns[cfg["lang"]].setChecked(True)
         for name, b in self.theme_btns.items():
-            ring = "#ffffff" if name == cfg["theme"] else theme.SURFACE
+            b.setToolTip(t("accent." + name))
+            ring = (theme.THEMES["blue"] if name == "white" else "#ffffff") if name == cfg["theme"] else theme.SURFACE
             b.setStyleSheet(f"QPushButton {{ background:{theme.THEMES[name]}; border:3px solid {ring};"
                             f" border-radius:19px; padding:0; }}")
         self.info.setText(f"{info}\nv{hyprstudio.__version__} · LabtosoStudios")
