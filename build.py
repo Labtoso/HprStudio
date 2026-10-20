@@ -154,6 +154,57 @@ def archive_versions() -> None:
     print(f"installer/_old/: {n} Versionen (neueste {VER})")
 
 
+def release_zip(d: Path) -> Path:
+    """GitHub-Release: nur Install.sh, uninstall.sh und der .desktop-Starter. Install.sh trägt das Paket
+    (arch/: PKGBUILD, install.sh, Quellen) als Anhang in sich, damit sonst nichts im Zip liegt."""
+    import base64
+    ver = d.name
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for f in sorted((d / "arch").rglob("*")):
+            if f.is_file():
+                ti = tarfile.TarInfo("arch/" + f.relative_to(d / "arch").as_posix())
+                ti.size = f.stat().st_size
+                ti.mode = 0o755 if f.name in EXEC else 0o644
+                ti.mtime = int(f.stat().st_mtime)
+                tar.addfile(ti, io.BytesIO(f.read_bytes()))
+    payload = base64.encodebytes(buf.getvalue())
+    script = lf(SELF_INSTALL_SH.replace("{ver}", ver).encode("utf-8")) + payload
+    rel = DIST / "releases"
+    rel.mkdir(parents=True, exist_ok=True)
+    target = rel / f"HyprStudio-{ver}.zip"
+    files = (("Install.sh", script, 0o755), ("uninstall.sh", lf((d / "uninstall.sh").read_bytes()), 0o755),
+             ("Install Hypr Studio.desktop", lf(RELEASE_DESKTOP.encode("utf-8")), 0o755))
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data, mode in files:
+            zi = zipfile.ZipInfo(f"HyprStudio-{ver}/{name}", (2026, 1, 1, 0, 0, 0))
+            zi.external_attr = (mode | 0o100000) << 16
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(zi, data)
+    return target
+
+
+SELF_INSTALL_SH = """#!/bin/sh
+# Install Hypr Studio {ver} – self-contained: the package (PKGBUILD, install.sh, sources) is attached below
+set -e
+TMP="$(mktemp -d /tmp/hyprstudio-setup.XXXXXX)"
+sed '1,/^__HYPRSTUDIO_PAYLOAD__$/d' "$0" | base64 -d | tar -xzf - -C "$TMP"
+sh "$TMP/arch/install.sh" "$@"
+exit $?
+__HYPRSTUDIO_PAYLOAD__
+"""
+
+# Doppelklick-Starter im Release: installiert im Terminal (fragt nach dem Passwort)
+RELEASE_DESKTOP = """[Desktop Entry]
+Type=Application
+Name=Install Hypr Studio
+Comment=Installs Hypr Studio (asks for your password)
+Exec=sh -c 'cd "$(dirname "%k")" && sh Install.sh; echo; echo Press Enter to close; read x'
+Icon=system-software-install
+Terminal=true
+Categories=Settings;
+"""
+
 INSTALL_SH = """#!/bin/sh
 # Install Hypr Studio (app menu entry and icon)
 exec sh "$(cd "$(dirname "$0")" && pwd)/arch/install.sh" "$@"
@@ -191,3 +242,6 @@ if __name__ == "__main__":
     pyz = build_pyz()
     tb = build_tarball()
     build_installer(pyz, tb)
+    for d in sorted(p for p in OLD.iterdir() if p.is_dir()):
+        release_zip(d)
+    print("dist/releases/: Zips nur mit Install.sh, uninstall.sh, .desktop")
