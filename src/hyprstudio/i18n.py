@@ -349,6 +349,15 @@ TEXT["en"].update({'sec.laptop': 'Laptop keys', 'laptop.title': 'Brightness, vol
 TEXT["de"].update({'laptop.auto': 'Laptop erkannt ({name}): Helligkeit, Lautstärke und Stumm funktionieren jetzt'})
 TEXT["en"].update({'laptop.auto': 'Laptop detected ({name}): brightness, volume and mute keys work now'})
 
+TEXT["de"].update({'lock.layout': 'Anordnung', 'llay.center': 'Mitte', 'llay.bottom_left': 'Unten links', 'llay.bottom_right': 'Unten rechts', 'llay.top_left': 'Oben links', 'llay.left': 'Links', 'llay.right': 'Rechts', 'llay.top': 'Oben', 'llay.bottom': 'Unten', 'llay.split': 'Geteilt', 'lp.corner': 'Ecke', 'lp.dracula': 'Dracula', 'lp.nightstand': 'Nachttisch', 'lp.sidebar': 'Seitenleiste', 'lp.sidebar_right': 'Seitenleiste rechts', 'lp.everforest': 'Everforest', 'lp.kanagawa': 'Kanagawa', 'lp.split': 'Geteilt', 'lp.neon': 'Neon', 'lp.paper': 'Papier', 'lp.photo': 'Foto', 'lp.glass_right': 'Glas rechts'})
+TEXT["en"].update({'lock.layout': 'Layout', 'llay.center': 'Centre', 'llay.bottom_left': 'Bottom left', 'llay.bottom_right': 'Bottom right', 'llay.top_left': 'Top left', 'llay.left': 'Left', 'llay.right': 'Right', 'llay.top': 'Top', 'llay.bottom': 'Bottom', 'llay.split': 'Split', 'lp.corner': 'Corner', 'lp.dracula': 'Dracula', 'lp.nightstand': 'Nightstand', 'lp.sidebar': 'Sidebar', 'lp.sidebar_right': 'Sidebar right', 'lp.everforest': 'Everforest', 'lp.kanagawa': 'Kanagawa', 'lp.split': 'Split', 'lp.neon': 'Neon', 'lp.paper': 'Paper', 'lp.photo': 'Photo', 'lp.glass_right': 'Glass right'})
+
+TEXT["de"].update({'accent.blue': 'Blau', 'accent.teal': 'Türkis', 'accent.violet': 'Violett', 'accent.orange': 'Orange', 'accent.white': 'Weiß', 'accent.mint': 'Mintgrün'})
+TEXT["en"].update({'accent.blue': 'Blue', 'accent.teal': 'Teal', 'accent.violet': 'Violet', 'accent.orange': 'Orange', 'accent.white': 'White', 'accent.mint': 'Mint green'})
+
+TEXT["de"].update({'nav.look': 'Aussehen', 'nav.control': 'Bedienung', 'nav.desktop': 'Desktop', 'nav.content': 'Inhalt', 'nav.program': 'Programm', 'nav.system': 'System', 'nav.devices': 'Geräte', 'nav.fold': 'Einklappen', 'nav.unfold': 'Ausklappen'})
+TEXT["en"].update({'nav.look': 'Look', 'nav.control': 'Controls', 'nav.desktop': 'Desktop', 'nav.content': 'Content', 'nav.program': 'Program', 'nav.system': 'System', 'nav.devices': 'Devices', 'nav.fold': 'Collapse', 'nav.unfold': 'Expand'})
+
 _lang = "en"
 
 
