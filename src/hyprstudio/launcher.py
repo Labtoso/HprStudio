@@ -429,7 +429,9 @@ def app_of_cmd(cmd: str) -> str | None:
 def _files_for(app: str, s: dict, cfg_home: Path) -> list:
     if app == "llauncher":  # L Launcher liest seine Einstellungen beim Start aus dieser Datei
         import json
-        return [(cfg_home / "LabtosoStudios" / "l-launcher.json", json.dumps(s, ensure_ascii=False, indent=1))]
+        # Kennung vorn, damit die eigene Datei nicht bei jedem Anwenden als „fremd“ neu gesichert wird
+        data = {"_generator": MARK, **s}
+        return [(cfg_home / "LabtosoStudios" / "l-launcher.json", json.dumps(data, ensure_ascii=False, indent=1))]
     if app == "rofi":
         d = cfg_home / "rofi"
         theme = d / "hyprstudio.rasi"
