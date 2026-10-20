@@ -21,6 +21,7 @@ class MainWindow(QtWidgets.QWidget):
         super().__init__()
         self.cfg = load_cfg()
         set_lang(self.cfg.get("lang", "en"))
+        model.FORMAT = self.cfg.get("hypr_format", "") if self.cfg.get("hypr_format") in ("lua", "conf") else ""
         if self.cfg.get("theme") not in theme.THEMES:
             self.cfg["theme"] = "blue"
         if self.cfg.get("tab") not in TABS:
@@ -134,6 +135,7 @@ class MainWindow(QtWidgets.QWidget):
         self.panel.lang_changed.connect(self.set_language)
         self.panel.theme_changed.connect(self.set_theme)
         self.panel.reset_requested.connect(self.reset_all)
+        self.panel.format_changed.connect(self.set_format)
         self.anim = QtCore.QPropertyAnimation(self.panel, b"pos", self)
         self.anim.setDuration(220)
         self.anim.setEasingCurve(QtCore.QEasingCurve.Type.OutCubic)
@@ -257,6 +259,7 @@ class MainWindow(QtWidgets.QWidget):
             self.dim.setGeometry(self.root.rect())
             self.dim.show()
             self.dim.raise_()
+            self.panel.pages.setCurrentIndex(0)
             self.panel.sync(self.cfg, self._info())
             self.panel.setFixedHeight(self.root.height())
             self.panel.move(-w, 0)
@@ -313,6 +316,16 @@ class MainWindow(QtWidgets.QWidget):
         self.save_later()
         self.retranslate()
         self.panel.sync(self.cfg, self._info())
+
+    def set_format(self, fmt: str):
+        """Erweiterte Einstellungen: alte (.conf) oder neue (Lua) Hyprland-Config schreiben."""
+        self.cfg["hypr_format"] = fmt
+        model.FORMAT = fmt
+        self.save_later()
+        self.panel.sync(self.cfg, self._info())
+        self.hypr_page.update_info()
+        self.set_status(t("adv.set", name=t("fmtsw." + fmt)))
+        self.log(t("adv.set", name=t("fmtsw." + fmt)))
 
     def set_theme(self, name: str):
         self.cfg["theme"] = name

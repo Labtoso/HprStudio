@@ -60,8 +60,8 @@ def _theme(pal: str, fg: str, bg: str, accent: str, tab_bg: str, muted: str, url
 
 
 PRESETS = {
-    # Sebastians Kitty-Config vom 2026-10-18 (Vault: Skripte/Kitty Config) – genau so
-    "mine": {"display_server": "x11"},
+    # „01“ = Sebastians Kitty-Config (Vault: Skripte/Kitty Config), 2026-10-20: Deckkraft 0.7, ohne Blur
+    "mine": {"display_server": "x11", "opacity": 0.7, "blur": 0},
     "tokyo": {},
     "catppuccin": _theme("catppuccin", "#cdd6f4", "#1e1e2e", "#cba6f7", "#181825", "#7f849c"),
     "nord": _theme("nord", "#d8dee9", "#2e3440", "#88c0d0", "#3b4252", "#7b88a1") | {"cursor_shape": "block"},

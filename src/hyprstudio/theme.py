@@ -57,6 +57,8 @@ def qss(accent: str) -> str:
     QPushButton#Primary:hover {{ background: {accent}; border-color: #ffffff; }}
     QPushButton#Primary:disabled {{ background: {SURFACE2}; border-color: {SURFACE2}; color: #4d5a6b; }}
     QPushButton#Danger:hover {{ border-color: {DANGER}; color: {DANGER}; }}
+    QPushButton#Outline {{ background: transparent; border: 1px solid {accent}; color: {accent}; font-weight: 600; }}
+    QPushButton#Outline:hover {{ background: {accent}; color: #ffffff; }}
     QPushButton#DangerFill {{ background: transparent; border: 1px solid {DANGER}; color: {DANGER}; font-weight: 600; }}
     QPushButton#DangerFill:hover {{ background: {DANGER}; color: #ffffff; }}
     QPushButton#DangerFill:disabled {{ border-color: {SURFACE2}; color: #4d5a6b; background: transparent; }}

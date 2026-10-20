@@ -1,7 +1,6 @@
 """Bausteine: Einstellungen speichern, Symbole, Schalter, Regler-Zeilen, Farbwahl, Preset-Karten, Modul-Spalten."""
 
 import json
-import locale
 import math
 import os
 from pathlib import Path
@@ -18,8 +17,7 @@ def load_cfg() -> dict:
     try:
         return json.loads(CONFIG.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        loc = (locale.getlocale()[0] or os.environ.get("LANG", "de")).lower()
-        return {"lang": "en", "theme": "blue"}  # Standard: Englisch (Deutsch im Zahnrad-Menü)
+        return {"lang": "en", "theme": "blue"}  # neu installiert: Englisch (Deutsch im Zahnrad-Menü)
 
 
 def save_cfg(cfg: dict) -> None:
@@ -539,12 +537,19 @@ class SettingsPanel(QtWidgets.QFrame):
     lang_changed = Signal(str)
     theme_changed = Signal(str)
     reset_requested = Signal()
+    format_changed = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("Panel")
         self.setFixedWidth(300)
-        lay = QtWidgets.QVBoxLayout(self)
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.pages = QtWidgets.QStackedWidget()
+        outer.addWidget(self.pages)
+        main = QtWidgets.QWidget()
+        self.pages.addWidget(main)
+        lay = QtWidgets.QVBoxLayout(main)
         lay.setContentsMargins(22, 22, 22, 22)
         lay.setSpacing(12)
         self.title = QtWidgets.QLabel()
@@ -594,11 +599,47 @@ class SettingsPanel(QtWidgets.QFrame):
         self.btn_reset.setMinimumHeight(40)
         self.btn_reset.clicked.connect(self.reset_requested.emit)
         lay.addWidget(self.btn_reset)
+        lay.addSpacing(8)
+        self.btn_adv = QtWidgets.QPushButton()
+        self.btn_adv.setObjectName("Outline")
+        self.btn_adv.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_adv.setMinimumHeight(40)
+        self.btn_adv.clicked.connect(lambda: self.pages.setCurrentIndex(1))
+        lay.addWidget(self.btn_adv)
         lay.addSpacing(14)
         self.info = QtWidgets.QLabel()
         self.info.setObjectName("Label")
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
+        self._build_advanced()
+
+    def _build_advanced(self):
+        """Erweiterte Einstellungen: zweite Seite im selben Panel."""
+        page = QtWidgets.QWidget()
+        self.pages.addWidget(page)
+        lay = QtWidgets.QVBoxLayout(page)
+        lay.setContentsMargins(22, 22, 22, 22)
+        lay.setSpacing(12)
+        self.btn_back = QtWidgets.QPushButton()
+        self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_back.clicked.connect(lambda: self.pages.setCurrentIndex(0))
+        lay.addWidget(self.btn_back, 0, Qt.AlignmentFlag.AlignLeft)
+        self.adv_title = QtWidgets.QLabel()
+        self.adv_title.setObjectName("PanelTitle")
+        self.adv_title.setWordWrap(True)
+        lay.addWidget(self.adv_title)
+        lay.addSpacing(10)
+        self.l_fmt = QtWidgets.QLabel()
+        self.l_fmt.setObjectName("Label")
+        lay.addWidget(self.l_fmt)
+        self.seg_fmt = Segmented(("conf", "lua"), prefix="fmtsw.")
+        self.seg_fmt.changed.connect(self.format_changed.emit)
+        lay.addWidget(self.seg_fmt)
+        self.fmt_state = QtWidgets.QLabel()
+        self.fmt_state.setObjectName("Label")
+        self.fmt_state.setWordWrap(True)
+        lay.addWidget(self.fmt_state)
+        lay.addStretch()
 
     def sync(self, cfg: dict, info: str) -> None:
         self.title.setText(t("settings"))
@@ -607,6 +648,17 @@ class SettingsPanel(QtWidgets.QFrame):
         self.l_reset.setText(t("reset.section"))
         self.btn_reset.setText(t("reset.button"))
         self.btn_reset.setToolTip(t("reset.tip"))
+        self.btn_adv.setText(t("adv.button"))
+        self.btn_back.setText("‹  " + t("adv.back"))
+        self.adv_title.setText(t("adv.button"))
+        self.l_fmt.setText(t("adv.format"))
+        self.seg_fmt.retranslate()
+        for k, b in self.seg_fmt.btns.items():
+            b.setToolTip(t("tip.fmtsw." + k))
+        hdir = model.config_home() / "hypr"
+        self.seg_fmt.select(model.hypr_format(hdir) or "lua")
+        found = model.detect_format(hdir)
+        self.fmt_state.setText(t("adv.found", name=t("fmt." + (found or "none"))))
         self.lang_btns[cfg["lang"]].setChecked(True)
         for name, b in self.theme_btns.items():
             ring = "#ffffff" if name == cfg["theme"] else theme.SURFACE

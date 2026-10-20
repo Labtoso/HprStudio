@@ -10,6 +10,7 @@ from pathlib import Path
 
 MARK = "Hypr Studio (LabtosoStudios)"
 DRY = os.environ.get("HYPRSTUDIO_DRYRUN") == "1" or sys.platform == "win32"
+FORMAT = ""  # Erweiterte Einstellungen: "lua" (neu, 0.55+), "conf" (alt, hyprlang bis 0.56) oder "" = erkennen
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "LabtosoStudios" / "hyprstudio"
 
 
@@ -632,6 +633,8 @@ def import_binds(hdir: Path, log) -> list:
     if not fmt:
         return []
     main = hdir / f"hyprland.{fmt}"
+    if not main.is_file():
+        return []
     text = main.read_text(encoding="utf-8", errors="replace")
     binds, idx = import_lua(text) if fmt == "lua" else import_conf(text)
     _comment_lines(main, idx, "-- [Hypr Studio] " if fmt == "lua" else "# [Hypr Studio] ", log)
@@ -909,13 +912,18 @@ def hypr_conf(s: dict) -> str:
     return "\n".join(out) + "\n"
 
 
-def hypr_format(hdir: Path) -> str | None:
-    """Lua hat ab 0.55 Vorrang (hyprland.lua wird statt hyprland.conf geladen)."""
+def detect_format(hdir: Path) -> str | None:
+    """Lua hat ab 0.55 Vorrang (hyprland.lua wird statt hyprland.conf geladen); ab 0.57 gibt es nur noch Lua."""
     if (hdir / "hyprland.lua").is_file():
         return "lua"
     if (hdir / "hyprland.conf").is_file():
         return "conf"
     return None
+
+
+def hypr_format(hdir: Path) -> str | None:
+    """Gewähltes Format (Erweiterte Einstellungen) oder erkanntes."""
+    return FORMAT if FORMAT in ("lua", "conf") else detect_format(hdir)
 
 
 INCLUDE = {
@@ -959,12 +967,16 @@ def _backup_foreign(target: Path) -> Path | None:
 
 
 def apply_hypr(s: dict, hdir: Path, log) -> tuple[bool, str]:
-    if DRY and hypr_format(hdir) is None:
-        hdir.mkdir(parents=True, exist_ok=True)
-        (hdir / "hyprland.lua").write_text("-- Testmodus: Platzhalter für die echte hyprland.lua\n", encoding="utf-8")
     fmt = hypr_format(hdir)
+    if DRY and not (hdir / f"hyprland.{fmt or 'lua'}").is_file():
+        fmt = fmt or "lua"
+        hdir.mkdir(parents=True, exist_ok=True)
+        (hdir / f"hyprland.{fmt}").write_text(f"{INCLUDE[fmt][1]} Testmodus: Platzhalter für die echte "
+                                              f"hyprland.{fmt}\n", encoding="utf-8")
     if fmt is None:
         return False, "nohypr"
+    if not (hdir / f"hyprland.{fmt}").is_file():
+        return False, f"nomain.{fmt}"
     target = hdir / f"hyprstudio.{fmt}"
     _keep_previous(target)
     target.write_text(hypr_lua(s) if fmt == "lua" else hypr_conf(s), encoding="utf-8")
