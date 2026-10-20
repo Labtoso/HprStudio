@@ -86,7 +86,10 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
             b.setFixedSize(170, 40)
             acts.addWidget(b)
         top.addLayout(acts)
-        right.addLayout(top)
+        self.top_box = QtWidgets.QWidget()
+        top.setContentsMargins(0, 0, 0, 0)
+        self.top_box.setLayout(top)
+        right.addWidget(self.top_box)
 
         self.stack = QtWidgets.QStackedWidget()
         self.pages = {}
@@ -107,8 +110,18 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
         right.addWidget(self.stack, 1)
         lay.addLayout(right, 1)
 
+        self.externals = {}
         self.refresh_controls()
         self.show_section(win.cfg.get(f"{self.KIND}_section", self.SECTIONS[0]))
+
+    def add_external(self, key, widget):
+        """Fremden Bereich (eigene Knöpfe, ohne Vorschau) in die Seitenleiste hängen, z. B. Hintergrundbild."""
+        old = self.pages[key]
+        self.stack.removeWidget(old)
+        old.deleteLater()
+        self.stack.addWidget(widget)
+        self.pages[key] = widget
+        self.externals[key] = widget
 
     # ----- Aufbau-Helfer -----
     def card(self, layout, title_key) -> Card:
@@ -186,6 +199,12 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
         self.stack.setCurrentWidget(self.pages[key])
         self.win.cfg[f"{self.KIND}_section"] = key
         self.win.save_later()
+        ext = getattr(self, "externals", {}).get(key)
+        self.top_box.setVisible(ext is None)
+        if ext is not None:
+            if hasattr(ext, "refresh"):
+                ext.refresh()
+            return
         # Bereiche ohne sichtbare Wirkung: Vorschau weg, Knöpfe in eine Zeile → mehr Platz für Einstellungen
         compact = key in self.NO_PREVIEW
         self.preview.setVisible(not compact)
@@ -258,7 +277,8 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
 
 
 class HyprPage(EditorPage):
-    SECTIONS = ("presets", "windows", "workspaces", "colors", "effects", "anim", "input", "keys", "system")
+    SECTIONS = ("presets", "windows", "workspaces", "colors", "effects", "anim", "input", "keys", "system",
+                "wallpaper", "cursor")
     NO_PREVIEW = ("workspaces", "input", "keys", "system")
     LOOK_KEYS = model.LOOK_KEYS
     KIND = "hypr"
@@ -706,6 +726,7 @@ class LauncherPage(EditorPage):
             c.layout().addWidget(self.btn_use, 0, Qt.AlignmentFlag.AlignLeft)
             c = self.card(lay, "card.lmode")
             c.choice("mode", ("drun", "run"), "lmode.")
+            c.toggle("name_search", tip="tip.name_search")
             c.choice("matching", ("fuzzy", "normal"), "match.")
             c.toggle("insensitive")
             c.text("terminal", width=200)

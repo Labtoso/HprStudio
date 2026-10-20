@@ -24,6 +24,8 @@ PACKAGES = {
     "hyprcursor": ("tools", "hyprcursor-util", {"pacman": ["hyprcursor"], "dnf": ["hyprcursor"]}),
     "hyprpaper": ("tools", "hyprpaper", {"pacman": ["hyprpaper"], "dnf": ["hyprpaper"]}),
     "cliphist": ("tools", "cliphist", {"pacman": ["cliphist"]}),
+    "fastfetch": ("tools", "fastfetch", {"pacman": ["fastfetch"], "apt": ["fastfetch"], "dnf": ["fastfetch"],
+                                         "zypper": ["fastfetch"]}),
 }
 GROUPS = ("launcher", "bar", "tools")
 DRY_INSTALLED: set = set()

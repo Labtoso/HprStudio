@@ -47,7 +47,10 @@ KITTY_DEFAULT = {
     "tab_edge": "bottom", "tab_style": "powerline", "tab_powerline": "slanted", "tab_title": "{index}: {title}",
     # Verhalten
     "confirm_close": 0, "audio_bell": False, "scrollback": 10000, "url_style": "curly", "copy_on_select": False,
+    # Beim Öffnen
+    "fastfetch": False, "start_cmds": [],
 }
+START = "hyprstudio-start.sh"
 LOOK = ("palette", "fg", "bg", "cursor", "sel_fg", "sel_bg", "url", "tab_active_fg", "tab_active_bg",
         "tab_inactive_fg", "tab_inactive_bg", "opacity", "blur", "padding", "cursor_shape", "trail", "tab_style",
         "tab_powerline")
@@ -90,6 +93,9 @@ def state(saved: dict | None) -> dict:
         if k == "palette":
             if isinstance(v, list) and len(v) == 16 and all(isinstance(x, str) for x in v):
                 s[k] = v
+        elif k == "start_cmds":
+            if isinstance(v, list):
+                s[k] = [x.strip() for x in v if isinstance(x, str) and x.strip()]
         elif type(v) is type(s[k]):
             s[k] = v
         elif isinstance(s[k], float) and type(v) is int:
@@ -113,7 +119,23 @@ def _num(v) -> str:
     return model._num(v) if not isinstance(v, bool) else ("yes" if v else "no")
 
 
-def conf(s: dict) -> str:
+def has_start(s: dict) -> bool:
+    return bool(s["fastfetch"] or s["start_cmds"])
+
+
+def start_script(s: dict) -> str:
+    """Läuft bei jedem neuen Kitty-Fenster und startet danach die normale Shell."""
+    out = ["#!/bin/sh", f"# {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben"]
+    if s["fastfetch"]:
+        out.append("command -v fastfetch >/dev/null 2>&1 && fastfetch")
+    out += s["start_cmds"]
+    out += ['sh_="${SHELL:-}"',
+            f'case "$sh_" in ""|*{START}) sh_=$(getent passwd "$(id -un)" | cut -d: -f7) ;; esac',
+            'exec "${sh_:-/bin/sh}"']
+    return "\n".join(out) + "\n"
+
+
+def conf(s: dict, start: Path | None = None) -> str:
     yn = lambda b: "yes" if b else "no"  # noqa: E731
     blink = "0" if not s["blink"] else f"{_num(float(s['blink']))} {s['blink_curve']}"
     lines = [
@@ -169,6 +191,8 @@ def conf(s: dict) -> str:
         "",
     ]
     lines += [f"color{i:<2} {_c(c)}" for i, c in enumerate(s["palette"])]
+    if start:
+        lines += ["", "# Beim Öffnen (Fastfetch / eigene Befehle)", f"shell {start}"]
     return "\n".join(lines) + "\n"
 
 
@@ -181,7 +205,14 @@ def apply(s: dict, cfg_home: Path, log) -> tuple[bool, str]:
     d.mkdir(parents=True, exist_ok=True)
     own = d / "hyprstudio.conf"
     model._keep_previous(own)
-    own.write_text(conf(s), encoding="utf-8")
+    start = None
+    if has_start(s):
+        start = d / START
+        with open(start, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(start_script(s))
+        start.chmod(0o755)
+        log(f"→ {start}")
+    own.write_text(conf(s, start), encoding="utf-8")
     log(f"→ {own}")
     main = d / "kitty.conf"
     text = main.read_text(encoding="utf-8", errors="replace") if main.is_file() else ""

@@ -4,7 +4,7 @@ import os
 import sys
 
 import hyprstudio
-from . import launcher, model, reset, theme
+from . import appearance, launcher, model, reset, theme
 from .i18n import t, set_lang
 from .gate import Gate, LauncherGate
 from .other import OtherPage
@@ -92,6 +92,10 @@ class MainWindow(QtWidgets.QWidget):
         self.stack.addWidget(self.launcher_gate)
         self.other_page = OtherPage(self)
         self.stack.addWidget(self.other_page)
+        for k in ("wallpaper", "cursor"):  # gehören zu Hyprland
+            self.hypr_page.add_external(k, self.other_page.gates[k])
+        self.hypr_page.show_section(self.cfg.get("hypr_section", "presets"))
+        QtCore.QTimer.singleShot(0, self._first_look)
         cl.addWidget(self.stack, 1)
 
         foot = QtWidgets.QHBoxLayout()
@@ -326,6 +330,15 @@ class MainWindow(QtWidgets.QWidget):
         self.hypr_page.update_info()
         self.set_status(t("adv.set", name=t("fmtsw." + fmt)))
         self.log(t("adv.set", name=t("fmtsw." + fmt)))
+
+    def _first_look(self):
+        """Erster Start: dunkles Farbschema für alle Programme (unter Sonstiges umstellbar)."""
+        if "appearance" in self.cfg:
+            return
+        self.cfg["appearance"] = appearance.DEFAULT
+        appearance.apply(appearance.DEFAULT, model.config_home(), self.log)
+        self.log(t("look.first"))
+        self.save_later()
 
     def set_theme(self, name: str):
         self.cfg["theme"] = name

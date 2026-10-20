@@ -5,13 +5,13 @@ from pathlib import Path
 
 import shutil
 
-from . import fixer, model, packages, theme
+from . import appearance, fixer, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
 from .kitty_page import KittyEditor
 from .paper_page import CursorEditor, PaperEditor
-from .widgets import set_chip
+from .widgets import Segmented, set_chip
 
 
 def _clear(lay: QtWidgets.QLayout):
@@ -60,7 +60,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "kitty", "wallpaper", "cursor", "tools", "backups")
+    SECTIONS = ("fix", "install", "kitty", "look", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -201,16 +201,28 @@ class OtherPage(QtWidgets.QWidget):
         il.addStretch()
         self.proc = None
 
+        # --- Hell/Dunkel für alle Programme ---
+        self.p_look, ll = self._page()
+        self.look_title = QtWidgets.QLabel()
+        self.look_title.setObjectName("CardTitle")
+        ll.addWidget(self.look_title)
+        self.look_seg = Segmented(appearance.MODES, prefix="look.")
+        self.look_seg.changed.connect(self.set_look)
+        ll.addWidget(self.look_seg, 0, Qt.AlignmentFlag.AlignLeft)
+        self.look_state = QtWidgets.QLabel()
+        self.look_state.setObjectName("RowLabel")
+        ll.addWidget(self.look_state)
+        ll.addStretch()
+
+        # Kitty hier; Hintergrundbild und Mauszeiger hängt das Hauptfenster in den Hyprland-Tab
         self.kitty = KittyEditor(win)
         self.paper = PaperEditor(win)
         self.cursor = CursorEditor(win)
         self.gates = {"kitty": Gate(self.kitty, "kitty", win), "wallpaper": Gate(self.paper, "hyprpaper", win),
                       "cursor": Gate(self.cursor, "hyprcursor", win)}
-        for g in self.gates.values():
-            self.stack.addWidget(g)
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"],
-                      "wallpaper": self.gates["wallpaper"], "cursor": self.gates["cursor"], "tools": self.p_tools,
-                      "backups": self.p_bak}
+        self.stack.addWidget(self.gates["kitty"])
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"], "look": self.p_look,
+                      "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
     def _page(self):
@@ -237,12 +249,30 @@ class OtherPage(QtWidgets.QWidget):
         self.chip.setVisible(key == "fix")
         if key in self.gates:
             self.gates[key].refresh()
+        if key == "look":
+            self.refresh_look()
         if key == "backups":
             self.load_backups()
         elif key == "install":
             self.refresh_packages()
         elif key == "fix" and hasattr(self, "chip") and self.isVisible():
             self.scan(quiet=True)
+
+    # ----- Hell/Dunkel -----
+    def refresh_look(self):
+        mode = self.win.cfg.get("appearance", appearance.DEFAULT)
+        self.look_title.setText(t("look.title"))
+        self.look_seg.retranslate()
+        self.look_seg.select(mode)
+        self.look_state.setText(t("look.active", name=t("look." + mode)))
+
+    def set_look(self, mode: str):
+        self.win.log("")
+        appearance.apply(mode, model.config_home(), self.win.log)
+        self.win.cfg["appearance"] = mode
+        self.win.save_later()
+        self.refresh_look()
+        self.win.set_status(t("look.active", name=t("look." + mode)))
 
     # ----- Reparatur -----
     def hdir(self) -> Path:

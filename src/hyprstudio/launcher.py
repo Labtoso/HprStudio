@@ -18,7 +18,7 @@ LAUNCHER_DEFAULT = {
     # Verhalten
     "font": "JetBrainsMono Nerd Font", "font_size": 12, "icons": True, "icon_theme": "",
     "show_prompt": True, "prompt": "Apps", "placeholder": "Suchen …", "mode": "drun", "matching": "fuzzy",
-    "insensitive": True, "terminal": "kitty", "show_scroll": False,
+    "insensitive": True, "terminal": "kitty", "show_scroll": False, "name_search": True,
 }
 LOOK = ("bg", "fg", "accent", "sel", "sel_fg", "input_bg", "border", "border_width", "radius", "el_radius",
         "width", "lines", "columns", "padding", "spacing", "position", "offset", "grid", "icon_size")
@@ -97,6 +97,13 @@ def _hex(c: str) -> str:
     return norm(c)
 
 
+def _rofi_match(s: dict) -> str:
+    """Programmnamen zuerst: nur im Namen suchen, Wortanfang muss passen, beste Treffer oben (fzf)."""
+    if s["name_search"]:
+        return '    matching: "prefix";\n    drun-match-fields: "name";\n    sorting-method: "fzf";\n'
+    return f'    matching: "{s["matching"]}";\n'
+
+
 def rofi_config(s: dict, theme_path: str) -> str:
     modi = {"drun": "drun,run,window", "run": "run,drun,window"}[s["mode"]]
     return f"""/* {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben */
@@ -109,8 +116,7 @@ configuration {{
     display-run: "{s["prompt"]}";
     display-window: "{s["prompt"]}";
     drun-display-format: "{{name}}";
-    matching: "{s["matching"]}";
-    case-sensitive: {"false" if s["insensitive"] else "true"};
+{_rofi_match(s)}    case-sensitive: {"false" if s["insensitive"] else "true"};
     sort: true;
     hover-select: true;
 }}
@@ -232,7 +238,7 @@ def wofi_config(s: dict) -> str:
         f"allow_images={'true' if s['icons'] else 'false'}",
         f"image_size={s['icon_size']}",
         f"insensitive={'true' if s['insensitive'] else 'false'}",
-        f"matching={'fuzzy' if s['matching'] == 'fuzzy' else 'contains'}",
+        f"matching={'fuzzy' if s['matching'] == 'fuzzy' and not s['name_search'] else 'contains'}",
         f"columns={s['columns'] if s['grid'] else max(1, s['columns'])}",
         f"hide_scroll={'false' if s['show_scroll'] else 'true'}",
         "no_actions=true",
@@ -320,6 +326,10 @@ def fuzzel_ini(s: dict) -> str:
         main.append(f"icon-theme={s['icon_theme']}")
     main += [
         f"terminal={s['terminal']} -e",
+    ]
+    if s["name_search"]:  # nur Name/Dateiname, kein Teil-Treffer in Beschreibung oder Kategorie
+        main += ["match-mode=exact", "fields=name,filename"]
+    main += [
         f"lines={s['lines'] * (s['columns'] if s['grid'] else 1)}",
         f"width={chars}",
         f"horizontal-pad={s['padding'] + 4}",

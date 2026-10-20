@@ -203,7 +203,7 @@ def render_card(s: dict) -> QtGui.QPixmap:
 
 class KittyEditor(UserPresetsMixin, QtWidgets.QWidget):
     """Eigenständiger Editor mit derselben Schnittstelle wie die Seiten (state/set/changed) für die Karten."""
-    SUBS = ("presets", "look", "font", "cursor", "tabs", "colors", "behavior")
+    SUBS = ("presets", "look", "font", "cursor", "tabs", "colors", "behavior", "start")
     KIND = "kitty"
 
     def __init__(self, win):
@@ -339,6 +339,10 @@ class KittyEditor(UserPresetsMixin, QtWidgets.QWidget):
             c.toggle("copy_on_select", label_key="k.copy")
             c.toggle("audio_bell", label_key="k.audio_bell")
             c.choice("confirm_close", ("0", "1", "-1"), "kconf.", label_key="k.confirm")
+        elif key == "start":
+            c = self.card(lay, "kc.start")
+            c.toggle("fastfetch", tip="tip.k.fastfetch", label_key="k.fastfetch")
+            c.lines("start_cmds", tip="tip.k.start_cmds")
 
     # ----- Zustand -----
     def set(self, key, value):
