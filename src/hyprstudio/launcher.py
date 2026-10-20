@@ -5,8 +5,8 @@ from pathlib import Path
 
 from .model import MARK, _backup_foreign, muted_color, norm, rgba_css, undo_file
 
-APPS = ("rofi", "wofi", "fuzzel")
-COMMANDS = {"rofi": "rofi -show drun", "wofi": "wofi --show drun", "fuzzel": "fuzzel"}
+APPS = ("rofi", "wofi", "fuzzel", "llauncher")
+COMMANDS = {"rofi": "rofi -show drun", "wofi": "wofi --show drun", "fuzzel": "fuzzel", "llauncher": "l-launcher"}
 
 LAUNCHER_DEFAULT = {
     "app": "rofi",
@@ -364,6 +364,9 @@ def fuzzel_ini(s: dict) -> str:
 def files(s: dict, cfg_home: Path, home_for_theme: Path | None = None) -> list:
     """[(pfad, inhalt)] für den gewählten Launcher."""
     app = s["app"]
+    if app == "llauncher":  # L Launcher liest seine Einstellungen beim Start aus dieser Datei
+        import json
+        return [(cfg_home / "LabtosoStudios" / "l-launcher.json", json.dumps(s, ensure_ascii=False, indent=1))]
     if app == "rofi":
         d = cfg_home / "rofi"
         theme = d / "hyprstudio.rasi"

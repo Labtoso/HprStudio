@@ -872,7 +872,7 @@ class LauncherPage(EditorPage):
 
     def do_apply(self):
         app = self.state["app"]
-        if not model.which(app):
+        if app != "llauncher" and not model.which(app):
             self.win.log(t("launcher.missing", app=app))
         ok, info = launcher.apply(self.state, model.config_home(), self.win.log)
         self.win.report(ok, info)
@@ -892,8 +892,8 @@ class LauncherPage(EditorPage):
 
     def update_info(self):
         app = self.state["app"]
-        ok = model.which(app)
-        self.info.setText(f"{app.capitalize()} · " + ("✓" if ok else t("fmt.none")))
+        ok = app == "llauncher" or model.which(app)
+        self.info.setText(f"{t('app.' + app)} · " + ("✓" if ok else t("fmt.none")))
         if hasattr(self, "btn_inst_app"):
             self.btn_inst_app.setVisible(not ok)
             self.btn_inst_app.setText(t("launcher.install", app=app.capitalize()))

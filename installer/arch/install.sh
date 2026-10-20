@@ -45,6 +45,7 @@ SRC="$(ls -d "$HS_WORK"/labtoso-hyprstudio-*/ | head -n1)"
 install -d /usr/lib/labtoso-hyprstudio
 cp -r "$SRC/src/hyprstudio" /usr/lib/labtoso-hyprstudio/
 install -Dm755 "$SRC/packaging/hypr-studio" /usr/bin/hypr-studio
+install -Dm755 "$SRC/packaging/l-launcher" /usr/bin/l-launcher
 install -Dm644 "$SRC/packaging/de.labtosostudios.hyprstudio.desktop" /usr/share/applications/de.labtosostudios.hyprstudio.desktop
 install -Dm644 "$SRC/src/hyprstudio/assets/hyprstudio.svg" /usr/share/icons/hicolor/scalable/apps/de.labtosostudios.hyprstudio.svg
 for s in 16 32 48 64 128 256; do

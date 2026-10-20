@@ -1,6 +1,6 @@
 # Maintainer: LabtosoStudios
 pkgname=labtoso-hyprstudio
-pkgver=1.17.0
+pkgver=1.18.0
 pkgrel=1
 pkgdesc="Hypr Studio – style Hyprland and Waybar with a few clicks"
 arch=('any')
@@ -17,6 +17,7 @@ package() {
   cp -r src/hyprstudio "$pkgdir/usr/lib/labtoso-hyprstudio/"
   find "$pkgdir/usr/lib/labtoso-hyprstudio" -name '__pycache__' -prune -exec rm -rf {} +
   install -Dm755 packaging/hypr-studio "$pkgdir/usr/bin/hypr-studio"
+  install -Dm755 packaging/l-launcher "$pkgdir/usr/bin/l-launcher"
   install -Dm644 packaging/de.labtosostudios.hyprstudio.desktop \
     "$pkgdir/usr/share/applications/de.labtosostudios.hyprstudio.desktop"
   install -Dm644 src/hyprstudio/assets/hyprstudio.svg \

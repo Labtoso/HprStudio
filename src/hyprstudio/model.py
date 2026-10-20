@@ -657,11 +657,13 @@ def lua_conflicts(main_text: str, binds: list) -> list:
     return [i for i, c in lua_bind_combos(main_text) if c in mine]
 
 
-LAUNCHERS = ("rofi", "wofi", "fuzzel", "hyprlauncher", "tofi", "anyrun", "walker", "bemenu-run", "dmenu_run",
+LAUNCHERS = ("l-launcher", "rofi", "wofi", "fuzzel", "hyprlauncher", "tofi", "anyrun", "walker", "bemenu-run", "dmenu_run",
              "ulauncher", "nwg-drawer", "albert", "sherlock", "vicinae", "hyprshell")
 
 
 def is_launcher_cmd(cmd: str) -> bool:
+    if (cmd or "").strip().startswith("hypr-studio --launcher"):
+        return True
     first = (cmd or "").strip().split(" ", 1)[0]
     return Path(first).name in LAUNCHERS
 
@@ -865,6 +867,16 @@ hl.window_rule({
 })'''
 
 
+L_LAUNCHER_LUA = '''
+-- L Launcher (Hypr Studio): schwebt (feste Größe), eigener runder Rahmen
+hl.window_rule({
+    name  = "hs-l-launcher",
+    match = { class = "l-launcher" },
+    border_size = 0,
+    rounding    = 0,
+})'''
+
+
 def hypr_lua(s: dict) -> str:
     b = _num
     lines = [f"-- {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben", "hl.config({"]
@@ -909,6 +921,7 @@ def hypr_lua(s: dict) -> str:
     binds = [x for x in s["binds"] if bind_ok(x)]
     if binds:
         lines += ["", "-- Tastenkürzel"] + [bind_lua(x) for x in binds]
+    lines += L_LAUNCHER_LUA.splitlines()
     return "\n".join(lines) + "\n"
 
 

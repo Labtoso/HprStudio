@@ -42,6 +42,8 @@ def manager() -> str | None:
 
 
 def installed(key: str) -> bool:
+    if key not in PACKAGES:  # z. B. L Launcher: gehört zu Hypr Studio
+        return True
     check = PACKAGES[key][1]
     if model.DRY:  # Testmodus: etwas gemischt anzeigen, „Installiertes“ merken
         return (key in ("waybar", "rofi") or key in DRY_INSTALLED) and key not in DRY_REMOVED
@@ -55,7 +57,7 @@ def installed(key: str) -> bool:
 
 
 def available(key: str, pm: str | None) -> bool:
-    return bool(pm and PACKAGES[key][2].get(pm))
+    return bool(pm and key in PACKAGES and PACKAGES[key][2].get(pm))
 
 
 def pkg_names(keys: list, pm: str) -> list:

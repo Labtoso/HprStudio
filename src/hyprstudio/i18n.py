@@ -319,6 +319,9 @@ TEXT["en"].update({'scroll.accel': 'Mouse acceleration', 'tip.accel': 'Off = poi
 TEXT["de"].update({'pkg.remove': '{n} entfernen', 'pkg.remove0': 'Ausgewählte entfernen', 'pkg.install_one': 'Installieren', 'pkg.remove_one': 'Entfernen', 'pkg.remove_title': 'Programme entfernen', 'pkg.remove_q': '{names} wirklich deinstallieren?\nPakete: {pkgs}'})
 TEXT["en"].update({'pkg.remove': 'Remove {n}', 'pkg.remove0': 'Remove selected', 'pkg.install_one': 'Install', 'pkg.remove_one': 'Remove', 'pkg.remove_title': 'Remove programs', 'pkg.remove_q': 'Really uninstall {names}?\nPackages: {pkgs}'})
 
+TEXT["de"].update({'app.llauncher': 'L Launcher', 'pkg.llauncher': 'L Launcher', 'pkgd.llauncher': 'Eigener Launcher von Hypr Studio: sucht bei jedem Buchstaben neu, nur Namen mit diesem Anfang'})
+TEXT["en"].update({'app.llauncher': 'L Launcher', 'pkg.llauncher': 'L Launcher', 'pkgd.llauncher': "Hypr Studio's own launcher: searches again with every letter, only names starting with it"})
+
 _lang = "en"
 
 

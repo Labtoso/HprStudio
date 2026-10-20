@@ -14,7 +14,7 @@ if command -v pacman >/dev/null 2>&1 && pacman -Qi labtoso-hyprstudio >/dev/null
 elif [ -d /usr/lib/labtoso-hyprstudio ] || [ -f /usr/bin/hypr-studio ]; then
   sudo sh -c '
     rm -rf /usr/lib/labtoso-hyprstudio
-    rm -f /usr/bin/hypr-studio
+    rm -f /usr/bin/hypr-studio /usr/bin/l-launcher
     rm -f /usr/share/applications/de.labtosostudios.hyprstudio.desktop
     rm -f /usr/share/icons/hicolor/scalable/apps/de.labtosostudios.hyprstudio.svg
     for s in 16 32 48 64 128 256; do
