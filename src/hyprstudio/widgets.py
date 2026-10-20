@@ -910,8 +910,14 @@ class SearchCombo(QtWidgets.QComboBox):
             return
         if self._pop is None:
             self._pop = SearchPopup(self)
-            self._pop.picked.connect(self.setCurrentIndex)
+            self._pop.picked.connect(self._choose)
         self._pop.open()
+
+    def _choose(self, i: int):
+        """Wie eine echte Auswahl im Qt-Menü: Index setzen UND activated melden (sonst merkt die Seite nichts)."""
+        self.setCurrentIndex(i)
+        self.activated.emit(i)
+        self.textActivated.emit(self.itemText(i))
 
     def hidePopup(self):
         if self._pop is not None:
