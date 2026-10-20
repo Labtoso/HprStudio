@@ -714,3 +714,151 @@ class ResetDialog(QtWidgets.QDialog):
         row.addWidget(cancel)
         row.addWidget(self.ok)
         lay.addLayout(row)
+
+
+# ---------- Auswahlmenüs ----------
+
+def round_popup(combo: QtWidgets.QComboBox) -> None:
+    """Rundes Aufklappmenü ohne helles Rechteck dahinter (Fenster des Menüs durchsichtig)."""
+    win = combo.view().window()
+    if win is combo or win.property("hs_round"):
+        return
+    win.setProperty("hs_round", True)
+    win.setWindowFlags(win.windowFlags() | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+    win.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    win.setStyleSheet("QComboBoxPrivateContainer { background: transparent; border: none; }")
+
+
+class RoundPopups(QtCore.QObject):
+    """App-weit: jedes Auswahlmenü bekommt runde Ecken ohne helle Box."""
+
+    def eventFilter(self, obj, e):
+        if e.type() == QtCore.QEvent.Type.Polish and isinstance(obj, QtWidgets.QComboBox) \
+                and not isinstance(obj, SearchCombo):
+            round_popup(obj)
+        return False
+
+
+class SearchPopup(QtWidgets.QFrame):
+    """Aufklappliste mit Suchfeld oben – Tippen sucht sofort, Pfeile/Enter/Esc funktionieren."""
+    picked = Signal(int)
+
+    def __init__(self, combo):
+        super().__init__(combo, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint
+                         | Qt.WindowType.NoDropShadowWindowHint)
+        self.combo = combo
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        card = QtWidgets.QFrame()
+        card.setObjectName("PopupCard")
+        outer.addWidget(card)
+        lay = QtWidgets.QVBoxLayout(card)
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(6)
+        self.search = QtWidgets.QLineEdit()
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+        self.search.installEventFilter(self)
+        lay.addWidget(self.search)
+        self.list = QtWidgets.QListWidget()
+        self.list.setObjectName("PopList")
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list.itemClicked.connect(self._choose)
+        lay.addWidget(self.list)
+
+    def open(self):
+        self.search.setPlaceholderText(t("search"))
+        self.list.clear()
+        for i in range(self.combo.count()):
+            it = QtWidgets.QListWidgetItem(self.combo.itemText(i))
+            it.setData(Qt.ItemDataRole.UserRole, i)
+            self.list.addItem(it)
+        self.search.blockSignals(True)
+        self.search.clear()
+        self.search.blockSignals(False)
+        self._filter()
+        cur = self.list.item(self.combo.currentIndex())
+        if cur:
+            self.list.setCurrentItem(cur)
+        self.show()
+        if cur:
+            self.list.scrollToItem(cur, QtWidgets.QAbstractItemView.ScrollHint.PositionAtCenter)
+        self.activateWindow()
+        self.search.setFocus()
+
+    def _visible(self) -> list:
+        return [self.list.item(i) for i in range(self.list.count()) if not self.list.item(i).isHidden()]
+
+    def _filter(self, *_):
+        q = self.search.text().strip().lower()
+        for i in range(self.list.count()):
+            it = self.list.item(i)
+            it.setHidden(bool(q) and not all(w in it.text().lower() for w in q.split()))
+        vis = self._visible()
+        if q and vis:
+            self.list.setCurrentItem(vis[0])
+        self._place(len(vis))
+
+    def _place(self, n: int):
+        """Größe passt sich der Trefferzahl an; ist unten kein Platz, geht das Menü nach oben auf."""
+        row = max(28, self.list.sizeHintForRow(0) if self.list.count() else 28)
+        h_list = max(1, min(n, 12)) * row + 8
+        w = max(self.combo.width(), 280)
+        h = h_list + self.search.sizeHint().height() + 6 + 16
+        self.list.setFixedHeight(h_list)
+        self.setFixedSize(w, h)
+        g = self.combo.mapToGlobal(QtCore.QPoint(0, self.combo.height() + 4))
+        scr = (self.combo.screen() or QtGui.QGuiApplication.primaryScreen()).availableGeometry()
+        if g.y() + h > scr.bottom():
+            g = self.combo.mapToGlobal(QtCore.QPoint(0, -h - 4))
+        g.setX(min(max(scr.left(), g.x()), scr.right() - w))
+        self.move(g)
+
+    def _choose(self, it=None):
+        it = it or self.list.currentItem()
+        if it is not None and not it.isHidden():
+            self.picked.emit(it.data(Qt.ItemDataRole.UserRole))
+        self.hide()
+
+    def eventFilter(self, obj, e):
+        if obj is self.search and e.type() == QtCore.QEvent.Type.KeyPress:
+            k = e.key()
+            steps = {Qt.Key.Key_Down: 1, Qt.Key.Key_Up: -1, Qt.Key.Key_PageDown: 8, Qt.Key.Key_PageUp: -8}
+            if k in steps:
+                vis = self._visible()
+                if vis:
+                    cur = self.list.currentItem()
+                    i = vis.index(cur) if cur in vis else -1
+                    self.list.setCurrentItem(vis[max(0, min(len(vis) - 1, i + steps[k]))])
+                return True
+            if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._choose()
+                return True
+            if k == Qt.Key.Key_Escape:
+                self.hide()
+                return True
+        return False
+
+
+class SearchCombo(QtWidgets.QComboBox):
+    """Auswahlmenü mit Suchfeld (nicht editierbar); editierbare Felder nutzen das normale runde Menü."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pop = None
+
+    def showPopup(self):
+        if self.isEditable():
+            round_popup(self)
+            super().showPopup()
+            return
+        if self._pop is None:
+            self._pop = SearchPopup(self)
+            self._pop.picked.connect(self.setCurrentIndex)
+        self._pop.open()
+
+    def hidePopup(self):
+        if self._pop is not None:
+            self._pop.hide()
+        super().hidePopup()

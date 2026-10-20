@@ -90,6 +90,19 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
         top.setContentsMargins(0, 0, 0, 0)
         self.top_box.setLayout(top)
         right.addWidget(self.top_box)
+        # Kopfzeile für eingehängte Bereiche (Hintergrundbild, Mauszeiger): Titel links, Knöpfe rechts
+        self.ext_head = QtWidgets.QWidget()
+        eh = QtWidgets.QHBoxLayout(self.ext_head)
+        eh.setContentsMargins(0, 0, 0, 0)
+        eh.setSpacing(8)
+        self.ext_title = QtWidgets.QLabel()
+        self.ext_title.setObjectName("PageTitle")
+        self.ext_title.setMinimumHeight(40)
+        eh.addWidget(self.ext_title)
+        eh.addStretch()
+        self.ext_btns = eh
+        self.ext_head.hide()
+        right.addWidget(self.ext_head)
 
         self.stack = QtWidgets.QStackedWidget()
         self.pages = {}
@@ -122,6 +135,22 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
         self.stack.addWidget(widget)
         self.pages[key] = widget
         self.externals[key] = widget
+        for b in getattr(getattr(widget, "content", widget), "actions", []):
+            self.ext_btns.addWidget(b)
+            b.hide()
+
+    def sync_external(self):
+        """Kopfzeile passend zum offenen eingehängten Bereich; ohne installiertes Programm keine Knöpfe."""
+        key = self.win.cfg.get(f"{self.KIND}_section")
+        ext = self.externals.get(key)
+        self.ext_head.setVisible(ext is not None)
+        if ext is None:
+            return
+        self.ext_title.setText(t("sec." + key))
+        ready = not hasattr(ext, "currentIndex") or ext.currentIndex() == 0
+        for k, w in self.externals.items():
+            for b in getattr(getattr(w, "content", w), "actions", []):
+                b.setVisible(k == key and ready)
 
     # ----- Aufbau-Helfer -----
     def card(self, layout, title_key) -> Card:
@@ -201,9 +230,14 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
         self.win.save_later()
         ext = getattr(self, "externals", {}).get(key)
         self.top_box.setVisible(ext is None)
+        if ext is not None and hasattr(ext, "refresh"):
+            ext.refresh()
+            content = getattr(ext, "content", None)
+            if ext.currentIndex() == 0 and hasattr(content, "refresh"):
+                content.refresh()
+        if hasattr(self, "ext_head"):
+            self.sync_external()
         if ext is not None:
-            if hasattr(ext, "refresh"):
-                ext.refresh()
             return
         # Bereiche ohne sichtbare Wirkung: Vorschau weg, Knöpfe in eine Zeile → mehr Platz für Einstellungen
         compact = key in self.NO_PREVIEW
@@ -373,6 +407,7 @@ class HyprPage(EditorPage):
             c.choice("accel", ("default", "flat", "adaptive"), "accel.")
             c.choice("follow_mouse", ("0", "1", "2"), "fm.")
             c.toggle("left_handed")
+            c.toggle("mouse_natural", tip="tip.scroll")
             c = self.card(lay, "card.touchpad")
             c.toggle("natural_scroll")
             c.toggle("dwt")
@@ -464,6 +499,8 @@ class HyprPage(EditorPage):
         super().retranslate()
         if hasattr(self, "binds"):
             self.binds.retranslate()
+        if hasattr(self, "wsed"):
+            self.wsed.retranslate(self.state["workspaces"])
             self._mark()
 
     def set(self, key, value):

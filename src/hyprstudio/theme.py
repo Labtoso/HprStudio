@@ -44,6 +44,12 @@ def qss(accent: str) -> str:
     QComboBox::drop-down {{ border: none; width: 22px; }}
     QComboBox QAbstractItemView {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px;
                                    selection-background-color: {accent}; outline: none; padding: 4px; }}
+    #PopupCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
+    QListWidget#PopList {{ background: transparent; border: none; outline: none; }}
+    QListWidget#PopList::item {{ border-radius: 8px; padding: 5px 8px; }}
+    QListWidget#PopList::item:hover {{ background: {SURFACE2}; }}
+    QListWidget#PopList::item:selected {{ background: {accent}; color: #ffffff; }}
+    QComboBox QAbstractItemView::item {{ border-radius: 6px; padding: 4px 6px; }}
     QListWidget#ModList {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px; outline: none; }}
     QListWidget#ModList::item {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px;
                                  padding: 6px 8px; margin: 2px 0; }}
@@ -104,6 +110,8 @@ def qss(accent: str) -> str:
     QPlainTextEdit {{ background: #0a0e13; border: 1px solid {BORDER}; border-radius: 12px; padding: 8px;
                       font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 9pt;
                       color: #b8c4d4; }}
+    QPlainTextEdit[readOnly="false"] {{ background: {SURFACE2}; border-radius: 10px; color: {TEXT}; }}
+    QPlainTextEdit[readOnly="false"]:focus {{ border-color: {accent}; }}
     #Panel {{ background: {SURFACE}; border-right: 1px solid {BORDER}; border-top-left-radius: 16px;
               border-bottom-left-radius: 16px; }}
     #PanelTitle {{ font-size: 13pt; font-weight: 600; }}

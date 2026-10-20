@@ -173,6 +173,12 @@ class WorkspaceEditor(QtWidgets.QWidget):
         self.lay = lay
         self._loading = False
 
+    def retranslate(self, items: list):
+        for lb in self.heads:
+            if lb.property("tkey"):
+                lb.setText(t(lb.property("tkey")))
+        self.load(items)
+
     def load(self, items: list):
         self._loading = True
         for r in self.rows:

@@ -11,7 +11,7 @@ from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
 from .kitty_page import KittyEditor
 from .paper_page import CursorEditor, PaperEditor
-from .widgets import Segmented, set_chip
+from .widgets import Card, Segmented, Switch, set_chip
 
 
 def _clear(lay: QtWidgets.QLayout):
@@ -60,7 +60,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "kitty", "look", "tools", "backups")
+    SECTIONS = ("fix", "install", "kitty", "look", "scroll", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -94,6 +94,7 @@ class OtherPage(QtWidgets.QWidget):
         head = QtWidgets.QHBoxLayout()
         self.title = QtWidgets.QLabel()
         self.title.setObjectName("PageTitle")
+        self.title.setMinimumHeight(40)
         self.chip = QtWidgets.QLabel()
         head.addWidget(self.title)
         head.addSpacing(10)
@@ -203,16 +204,27 @@ class OtherPage(QtWidgets.QWidget):
 
         # --- Hell/Dunkel für alle Programme ---
         self.p_look, ll = self._page()
-        self.look_title = QtWidgets.QLabel()
-        self.look_title.setObjectName("CardTitle")
-        ll.addWidget(self.look_title)
+        self.look_card = Card("look.title", self)
         self.look_seg = Segmented(appearance.MODES, prefix="look.")
         self.look_seg.changed.connect(self.set_look)
-        ll.addWidget(self.look_seg, 0, Qt.AlignmentFlag.AlignLeft)
+        self.look_card.layout().addWidget(self.look_seg, 0, Qt.AlignmentFlag.AlignLeft)
         self.look_state = QtWidgets.QLabel()
         self.look_state.setObjectName("RowLabel")
-        ll.addWidget(self.look_state)
+        self.look_card.layout().addWidget(self.look_state)
+        ll.addWidget(self.look_card)
         ll.addStretch()
+
+        # --- Scrollrichtung (schreibt über Hyprland und wendet sofort an) ---
+        self.p_scroll, scl = self._page()
+        self.scroll_card = Card("scroll.title", self)
+        self.scroll_sw = {}
+        for key in ("mouse_natural", "natural_scroll"):
+            sw = Switch()
+            sw.toggled.connect(lambda on, k=key: self.set_scroll(k, on))
+            self.scroll_card._add("scroll." + key, sw, None, "tip.scroll", None, label_key="scroll." + key)
+            self.scroll_sw[key] = sw
+        scl.addWidget(self.scroll_card)
+        scl.addStretch()
 
         # Kitty hier; Hintergrundbild und Mauszeiger hängt das Hauptfenster in den Hyprland-Tab
         self.kitty = KittyEditor(win)
@@ -221,7 +233,7 @@ class OtherPage(QtWidgets.QWidget):
         self.gates = {"kitty": Gate(self.kitty, "kitty", win), "wallpaper": Gate(self.paper, "hyprpaper", win),
                       "cursor": Gate(self.cursor, "hyprcursor", win)}
         self.stack.addWidget(self.gates["kitty"])
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"], "look": self.p_look,
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
                       "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
@@ -251,6 +263,8 @@ class OtherPage(QtWidgets.QWidget):
             self.gates[key].refresh()
         if key == "look":
             self.refresh_look()
+        if key == "scroll":
+            self.refresh_scroll()
         if key == "backups":
             self.load_backups()
         elif key == "install":
@@ -261,7 +275,7 @@ class OtherPage(QtWidgets.QWidget):
     # ----- Hell/Dunkel -----
     def refresh_look(self):
         mode = self.win.cfg.get("appearance", appearance.DEFAULT)
-        self.look_title.setText(t("look.title"))
+        self.look_card.retranslate()
         self.look_seg.retranslate()
         self.look_seg.select(mode)
         self.look_state.setText(t("look.active", name=t("look." + mode)))
@@ -273,6 +287,24 @@ class OtherPage(QtWidgets.QWidget):
         self.win.save_later()
         self.refresh_look()
         self.win.set_status(t("look.active", name=t("look." + mode)))
+
+    # ----- Scrollrichtung -----
+    def refresh_scroll(self):
+        self.scroll_card.retranslate()
+        hs = self.win.hypr_page.state
+        for k, sw in self.scroll_sw.items():
+            sw.set_now(bool(hs[k]))
+            sw.accent = self.win.accent()
+
+    def set_scroll(self, key: str, on: bool):
+        hp = self.win.hypr_page
+        if hp.state[key] == on:
+            return
+        hp.state[key] = on
+        hp.refresh_controls()
+        hp.changed()
+        self.win.log("")
+        hp.apply()
 
     # ----- Reparatur -----
     def hdir(self) -> Path:

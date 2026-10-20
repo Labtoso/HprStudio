@@ -10,7 +10,7 @@ from .gate import Gate, LauncherGate
 from .other import OtherPage
 from .pages import HyprPage, LauncherPage, WaybarPage
 from .qt import QtCore, QtGui, QtWidgets, Qt
-from .widgets import ResetDialog, Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
+from .widgets import ResetDialog, RoundPopups, Segmented, SettingsPanel, app_icon, draw_icon, load_cfg, save_cfg
 
 
 TABS = ("hypr", "waybar", "launcher", "other")
@@ -188,6 +188,7 @@ class MainWindow(QtWidgets.QWidget):
         self.launcher_gate.refresh()
         for g in self.other_page.gates.values():
             g.refresh()
+        self.hypr_page.sync_external()
         for pg in self.all_pages():
             pg.update_info()
         self.other_page.refresh_packages()
@@ -380,6 +381,8 @@ def main(argv) -> int:
     app.setDesktopFileName(hyprstudio.APP_ID)
     app.setWindowIcon(app_icon())
     app.setStyle("Fusion")
+    app._round = RoundPopups(app)  # Auswahlmenüs ohne helle Box
+    app.installEventFilter(app._round)
     w = MainWindow()
     w.show()
     shot = os.environ.get("HYPRSTUDIO_SHOT")

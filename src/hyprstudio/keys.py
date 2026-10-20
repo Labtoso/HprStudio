@@ -5,7 +5,7 @@ import sys
 from . import model, theme
 from .i18n import TEXT, t
 from .qt import QtCore, QtGui, QtWidgets, Qt, Signal
-from .widgets import draw_icon
+from .widgets import SearchCombo, draw_icon
 
 K = Qt.Key
 KEYNAMES = {
@@ -183,7 +183,7 @@ class BindRow(QtWidgets.QFrame):
         self.keybtn.captured.connect(lambda *_: self.changed.emit())
         lay.addWidget(self.keybtn)
         lay.addSpacing(6)
-        self.action = QtWidgets.QComboBox()
+        self.action = SearchCombo()
         self.action.setFixedWidth(220)
         self.action.setMaxVisibleItems(20)
         for a in model.ACTIONS:
@@ -191,7 +191,7 @@ class BindRow(QtWidgets.QFrame):
         self.action.setCurrentIndex(list(model.ACTIONS).index(b["action"]))
         self.action.currentIndexChanged.connect(self._action_changed)
         lay.addWidget(self.action)
-        self.arg = QtWidgets.QComboBox()
+        self.arg = SearchCombo()
         self.arg.setMinimumWidth(200)
         self.arg.setMaxVisibleItems(20)
         self.arg.currentTextChanged.connect(lambda _: self.changed.emit())
@@ -305,15 +305,16 @@ class BindEditor(QtWidgets.QWidget):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             top.addWidget(b)
         top.addStretch()
-        self.search = QtWidgets.QLineEdit()
-        self.search.setObjectName("Search")
-        self.search.setFixedWidth(200)
-        self.search.setClearButtonEnabled(True)
-        self.search.textChanged.connect(self._filter)
-        top.addWidget(self.search)
         self.count = QtWidgets.QLabel()
         self.count.setObjectName("RowLabel")
         top.addWidget(self.count)
+        # Suchleiste oben über die ganze Breite
+        self.search = QtWidgets.QLineEdit()
+        self.search.setObjectName("Search")
+        self.search.setMinimumHeight(40)
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+        lay.addWidget(self.search)
         lay.addLayout(top)
         self.rows_lay = QtWidgets.QVBoxLayout()
         self.rows_lay.setSpacing(6)
