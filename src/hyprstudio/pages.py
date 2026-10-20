@@ -637,7 +637,7 @@ class WaybarPage(EditorPage):
             self.btn_from.clicked.connect(self.from_hypr)
             c.layout().addWidget(self.btn_from, 0, Qt.AlignmentFlag.AlignLeft)
             c = self.card(lay, "card.font")
-            c.text("font", width=260)
+            c.font("font")
             c.slider("font_size", 9, 24)
             c.choice("font_weight", ("normal", "600", "bold"), "fw.")
             c.toggle("icons")
@@ -859,7 +859,7 @@ class LauncherPage(EditorPage):
             c.layout().addWidget(self.btn_from, 0, Qt.AlignmentFlag.AlignLeft)
         elif key == "text":
             c = self.card(lay, "card.font")
-            c.text("font", width=260)
+            c.font("font")
             c.slider("font_size", 8, 24)
             c = self.card(lay, "card.ltext")
             c.toggle("show_prompt")

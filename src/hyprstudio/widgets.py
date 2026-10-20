@@ -3,10 +3,11 @@
 import json
 import math
 import os
+import weakref
 from pathlib import Path
 
 import hyprstudio
-from . import model, theme
+from . import fonts, model, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt, Signal
 
@@ -346,6 +347,13 @@ class Card(QtWidgets.QFrame):
                 le.setText(s[key])
         self._add(key, le, None, tip, refresh, label_key=label_key)
         return le
+
+    def font(self, key, tip=None, label_key=None):
+        """Schriftart: Auswahl mit Suche, fehlende Nerd Fonts direkt installierbar."""
+        fc = FontCombo()
+        fc.chosen.connect(lambda f: self.page.set(key, f))
+        self._add(key, fc, None, tip, lambda s: fc.fill(s[key]), label_key=label_key)
+        return fc
 
     def lines(self, key, tip=None):
         """Mehrzeiliges Feld: eine Zeile = ein Listeneintrag."""
@@ -776,6 +784,10 @@ class SearchPopup(QtWidgets.QFrame):
         for i in range(self.combo.count()):
             it = QtWidgets.QListWidgetItem(self.combo.itemText(i))
             it.setData(Qt.ItemDataRole.UserRole, i)
+            for role in (Qt.ItemDataRole.FontRole, Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.ForegroundRole):
+                v = self.combo.itemData(i, role)
+                if v is not None:
+                    it.setData(role, v)
             self.list.addItem(it)
         self.search.blockSignals(True)
         self.search.clear()
@@ -865,3 +877,111 @@ class SearchCombo(QtWidgets.QComboBox):
         if self._pop is not None:
             self._pop.hide()
         super().hidePopup()
+
+
+class _FontJob(QtCore.QThread):
+    line = Signal(str)
+    result = Signal(object)
+
+    def __init__(self, archive, parent=None):
+        super().__init__(parent)
+        self.archive = archive
+
+    def run(self):
+        try:
+            r = fonts.install(self.archive, self.line.emit)
+        except Exception as e:  # noqa: BLE001 – Netzfehler sauber melden
+            r = e
+        self.result.emit(r)
+
+
+class FontCombo(SearchCombo):
+    """Schriftart wählen: installierte Schriften in ihrer eigenen Schrift, darunter Nerd Fonts zum Installieren."""
+    chosen = Signal(str)
+    _all = weakref.WeakSet()
+    _loaded = False
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumWidth(320)
+        self.value = None
+        self.job = None
+        FontCombo._all.add(self)
+        self.activated.connect(self._picked)
+        if not FontCombo._loaded:  # über Hypr Studio installierte Schriften sofort in Qt verfügbar machen
+            FontCombo._loaded = True
+            for f in fonts.local_files():
+                QtGui.QFontDatabase.addApplicationFont(str(f))
+
+    def fill(self, value: str, force: bool = False):
+        if not force and self.count() and value == self.value:
+            return
+        self.value = value
+        fams = sorted({f for f in QtGui.QFontDatabase.families() if not f.startswith(".")}, key=str.lower)
+        self.blockSignals(True)
+        self.clear()
+        if value and value not in fams:  # gewählt, aber (noch) nicht installiert
+            self.addItem(f"{value}  ·  {t('font.missing')}", ("font", value))
+        for f in fams:
+            self.addItem(f, ("font", f))
+            self.setItemData(self.count() - 1, QtGui.QFont(f), Qt.ItemDataRole.FontRole)
+        get = t("font.get")
+        for archive, fam in fonts.CATALOG:
+            if fam not in fams:
+                self.addItem(f"⬇  {fam}  ·  {get}", ("get", archive))
+                self.setItemData(self.count() - 1, t("font.get_tip"), Qt.ItemDataRole.ToolTipRole)
+                self.setItemData(self.count() - 1, QtGui.QColor(theme.MUTED), Qt.ItemDataRole.ForegroundRole)
+        self.setCurrentIndex(max(0, self.findData(("font", value))))
+        self.blockSignals(False)
+
+    def _win(self):
+        w = self.window()
+        return w if hasattr(w, "set_status") else None
+
+    def _picked(self, i: int):
+        kind, val = self.itemData(i) or ("", "")
+        if kind == "font":
+            self.value = val
+            self.chosen.emit(val)
+            return
+        self.setCurrentIndex(max(0, self.findData(("font", self.value))))
+        if kind == "get" and self.job is None:
+            self._install(val)
+
+    def _install(self, archive: str):
+        win = self._win()
+        self.setEnabled(False)
+        if win:
+            win.set_status(t("font.loading", name=fonts.family_of(archive)))
+            win.bar_busy(True)
+        self.job = _FontJob(archive, self)
+        if win:
+            self.job.line.connect(win.log)
+        self.job.result.connect(lambda r, a=archive: self._installed(a, r))
+        self.job.start()
+
+    def _installed(self, archive: str, r):
+        win = self._win()
+        self.job = None
+        self.setEnabled(True)
+        if win:
+            win.bar_busy(False)
+        if isinstance(r, Exception) or not r:
+            if win:
+                win.log(f"{archive}: {r}")
+                win.set_status(t("font.fail"))
+            return
+        found = []
+        for f in r:
+            fid = QtGui.QFontDatabase.addApplicationFont(str(f))
+            if fid >= 0:
+                found += QtGui.QFontDatabase.applicationFontFamilies(fid)
+        fam = fonts.family_of(archive)
+        if fam not in found and found:
+            fam = min(set(found), key=len)
+        for c in list(FontCombo._all):
+            c.fill(c.value or "", force=True)
+        self.fill(fam, force=True)
+        self.chosen.emit(fam)
+        if win:
+            win.set_status(t("font.done", name=fam))

@@ -291,7 +291,7 @@ class KittyEditor(UserPresetsMixin, QtWidgets.QWidget):
             c.choice("display_server", ("auto", "wayland", "x11"), "kds.", label_key="k.display", tip="tip.k.display")
         elif key == "font":
             c = self.card(lay, "card.font")
-            c.text("font", width=260, label_key="font")
+            c.font("font", label_key="font")
             c.slider("font_size", 6, 24, 0.5, "{:.1f}", label_key="font_size")
             c.choice("ligatures", ("never", "cursor", "always"), "klig.", label_key="k.ligatures")
         elif key == "cursor":
