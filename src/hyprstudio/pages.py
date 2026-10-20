@@ -312,7 +312,7 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
 
 class HyprPage(EditorPage):
     SECTIONS = ("presets", "windows", "workspaces", "colors", "effects", "anim", "input", "keys", "system",
-                "wallpaper", "cursor")
+                "wallpaper", "cursor", "lock")
     NO_PREVIEW = ("workspaces", "input", "keys", "system")
     LOOK_KEYS = model.LOOK_KEYS
     KIND = "hypr"

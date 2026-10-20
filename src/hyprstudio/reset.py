@@ -275,7 +275,8 @@ def restore_originals(cfg_home: Path, log) -> int:
     """Waybar und Launcher: Original zurück; gab es keins, wird die erzeugte Datei zur Sicherung umbenannt."""
     n = 0
     for rel in ("waybar/config.jsonc", "waybar/config.json", "waybar/config", "waybar/style.css",
-                "rofi/config.rasi", "rofi/hyprstudio.rasi", "wofi/config", "wofi/style.css", "fuzzel/fuzzel.ini"):
+                "rofi/config.rasi", "rofi/hyprstudio.rasi", "wofi/config", "wofi/style.css", "fuzzel/fuzzel.ini",
+                "hypr/hyprlock.conf", "kdeglobals"):
         f = cfg_home / rel
         orig = f.with_name(f.name + ".hyprstudio-original")
         if orig.is_file():

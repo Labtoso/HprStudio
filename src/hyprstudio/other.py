@@ -10,6 +10,7 @@ from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
 from .kitty_page import KittyEditor
+from .lock_page import LockEditor
 from .paper_page import CursorEditor, PaperEditor
 from .widgets import Card, Segmented, Switch, set_chip
 
@@ -265,8 +266,10 @@ class OtherPage(QtWidgets.QWidget):
         self.kitty = KittyEditor(win)
         self.paper = PaperEditor(win)
         self.cursor = CursorEditor(win)
+        self.lock = LockEditor(win)
         self.gates = {"kitty": Gate(self.kitty, "kitty", win), "wallpaper": Gate(self.paper, "hyprpaper", win),
-                      "cursor": Gate(self.cursor, "hyprcursor", win)}
+                      "cursor": Gate(self.cursor, "hyprcursor", win),
+                      "lock": Gate(self.lock, "hyprlock", win)}
         self.stack.addWidget(self.gates["kitty"])
         self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
                       "tools": self.p_tools, "backups": self.p_bak}
@@ -644,6 +647,7 @@ class OtherPage(QtWidgets.QWidget):
         self.kitty.apply_theme(accent)
         self.paper.apply_theme(accent)
         self.cursor.apply_theme(accent)
+        self.lock.apply_theme(accent)
 
     def retranslate(self):
         for k, b in self.nav.items():
@@ -658,6 +662,7 @@ class OtherPage(QtWidgets.QWidget):
         self.kitty.retranslate()
         self.paper.retranslate()
         self.cursor.retranslate()
+        self.lock.retranslate()
         for g in self.gates.values():
             g.refresh()
         for g in packages.GROUPS:

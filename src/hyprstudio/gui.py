@@ -113,7 +113,7 @@ class MainWindow(QtWidgets.QWidget):
         self.stack.addWidget(self.launcher_gate)
         self.other_page = OtherPage(self)
         self.stack.addWidget(self.other_page)
-        for k in ("wallpaper", "cursor"):  # gehören zu Hyprland
+        for k in ("wallpaper", "cursor", "lock"):  # gehören zu Hyprland
             self.hypr_page.add_external(k, self.other_page.gates[k])
         self.hypr_page.show_section(self.cfg.get("hypr_section", "presets"))
         QtCore.QTimer.singleShot(0, self._first_look)
