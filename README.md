@@ -52,7 +52,7 @@ From the `installer/` folder:
 
 | Way | How |
 |---|---|
-| Install (app menu entry + `hypr-studio`, `l-launcher`) | `sh installer/Installieren.sh` |
+| Install (app menu entry + `hypr-studio`, `l-launcher`) | `sh installer/Install.sh` |
 | Arch package | `cd installer/arch && makepkg -si` |
 | Portable, no install | `sh installer/Portable.sh` |
 | Uninstall | `sh installer/uninstall.sh` |
@@ -73,4 +73,3 @@ On Windows the app runs in **test mode** (writes only to a cache folder, runs no
 
 ## License
 MIT – © LabtosoStudios
-
