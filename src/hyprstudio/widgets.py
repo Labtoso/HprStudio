@@ -752,6 +752,61 @@ class RoundPopups(QtCore.QObject):
         return False
 
 
+class NavHeader(QtWidgets.QPushButton):
+    """Kategorie in der Seitenleiste: Akzentfarbe, kleine Großbuchstaben, per Klick ein-/ausklappbar.
+    Der gerade offene Bereich bleibt auch eingeklappt sichtbar."""
+
+    def __init__(self, gid: str, key: str, win, parent=None):
+        super().__init__(parent)
+        self.setObjectName("NavHead")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.gid, self.key, self.win, self.buttons = gid, key, win, []
+        self.clicked.connect(self.toggle)
+
+    def collapsed(self) -> bool:
+        return self.gid in self.win.cfg.get("nav_collapsed", [])
+
+    def toggle(self):
+        lst = self.win.cfg.setdefault("nav_collapsed", [])
+        if self.gid in lst:
+            lst.remove(self.gid)
+        else:
+            lst.append(self.gid)
+        self.win.save_later()
+        self.sync()
+
+    def sync(self, *_):
+        c = self.collapsed()
+        for b in self.buttons:
+            b.setVisible(not c or b.isChecked())
+        self.retranslate()
+
+    def retranslate(self):
+        self.setText(("▸  " if self.collapsed() else "▾  ") + t("nav." + self.key).upper())
+        self.setToolTip(t("nav.fold") if not self.collapsed() else t("nav.unfold"))
+
+
+def nav_groups(layout, nav: dict, groups, kind: str, win) -> list:
+    """Seitenleiste nach Kategorien ordnen: Überschrift, darunter ihre Bereiche; ohne Gruppen wie bisher."""
+    heads, placed = [], set()
+    for key, items in groups:
+        h = NavHeader(f"{kind}:{key}", key, win)
+        layout.addWidget(h)
+        for k in items:
+            if k in nav:
+                layout.addWidget(nav[k])
+                h.buttons.append(nav[k])
+                nav[k].toggled.connect(h.sync)
+                placed.add(k)
+        heads.append(h)
+    for k, b in nav.items():  # Bereiche ohne Kategorie ans Ende
+        if k not in placed:
+            layout.addWidget(b)
+    for h in heads:
+        h.sync()
+    return heads
+
+
 class SearchPopup(QtWidgets.QFrame):
     """Aufklappliste mit Suchfeld oben – Tippen sucht sofort, Pfeile/Enter/Esc funktionieren.
     Schnell auch bei Hunderten Einträgen: Liste nur neu aufbauen, wenn sich die Einträge geändert haben,

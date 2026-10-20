@@ -10,12 +10,13 @@ from .keys import BindEditor
 from .bar_editor import BarEditor
 from .workspaces import WorkspaceEditor
 from .userpresets import PREFIX, UserPresetsMixin, store
-from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, Switch, draw_icon, set_chip
+from .widgets import Card, FlowGrid, ModuleColumns, PresetCard, Switch, draw_icon, nav_groups, set_chip
 
 
 
 class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
     SECTIONS: tuple = ()
+    NAV_GROUPS: tuple = ()  # Kategorien der Seitenleiste: (Schlüssel, [Bereiche])
     NO_PREVIEW: tuple = ()
     HAS_PLAY = True
     KIND = ""
@@ -47,8 +48,8 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.clicked.connect(lambda _=False, k=key: self.show_section(k))
             grp.addButton(b)
-            sl.addWidget(b)
             self.nav[key] = b
+        self.nav_heads = nav_groups(sl, self.nav, self.NAV_GROUPS, f"{self.KIND}", win)
         sl.addStretch()
         self.info = QtWidgets.QLabel()
         self.info.setObjectName("Label")
@@ -284,6 +285,8 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
     def retranslate(self):
         for key, b in self.nav.items():
             b.setText(t("sec." + key).replace("&", "&&"))
+        for h in self.nav_heads:
+            h.retranslate()
         for c in self.cards:
             c.retranslate()
         for s in self.segs:
@@ -313,6 +316,9 @@ class EditorPage(UserPresetsMixin, QtWidgets.QWidget):
 class HyprPage(EditorPage):
     SECTIONS = ("presets", "windows", "workspaces", "colors", "effects", "anim", "input", "keys", "system",
                 "wallpaper", "cursor", "lock")
+    NAV_GROUPS = (("look", ["presets", "windows", "colors", "effects", "anim"]),
+                  ("control", ["workspaces", "input", "keys", "system"]),
+                  ("desktop", ["wallpaper", "cursor", "lock"]))
     NO_PREVIEW = ("workspaces", "input", "keys", "system")
     LOOK_KEYS = model.LOOK_KEYS
     KIND = "hypr"
@@ -537,6 +543,7 @@ class HyprPage(EditorPage):
 
 class WaybarPage(EditorPage):
     SECTIONS = ("presets", "editor", "bar", "modules", "options", "style")
+    NAV_GROUPS = (("look", ["presets", "bar", "style"]), ("content", ["editor", "modules", "options"]))
     NO_PREVIEW = ("editor",)
     HAS_PLAY = False
     LOOK_KEYS = model.WB_LOOK
@@ -725,6 +732,7 @@ class WaybarPage(EditorPage):
 
 class LauncherPage(EditorPage):
     SECTIONS = ("presets", "app", "window", "colors", "text")
+    NAV_GROUPS = (("look", ["presets", "window", "colors", "text"]), ("program", ["app"]))
     HAS_PLAY = False
     KIND = "launcher"
     LOOK_KEYS = launcher.LOOK

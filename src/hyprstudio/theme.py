@@ -53,6 +53,9 @@ def qss(accent: str) -> str:
     #Side {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 16px; }}
     QPushButton#Nav {{ background: transparent; border: none; border-radius: 10px; padding: 9px 14px;
                        text-align: left; color: {MUTED}; }}
+    QPushButton#NavHead {{ background: transparent; border: none; color: {accent}; font-size: 8pt; font-weight: 700;
+                           letter-spacing: 1.5px; text-align: left; padding: 12px 8px 4px 10px; }}
+    QPushButton#NavHead:hover {{ color: {TEXT}; }}
     QPushButton#Nav:hover {{ background: {SURFACE2}; color: {TEXT}; }}
     QPushButton#Nav:checked {{ background: {SURFACE2}; color: {TEXT}; font-weight: 600;
                                border-left: 3px solid {accent}; border-top-left-radius: 4px;

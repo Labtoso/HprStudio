@@ -12,7 +12,7 @@ from .gate import Gate
 from .kitty_page import KittyEditor
 from .lock_page import LockEditor
 from .paper_page import CursorEditor, PaperEditor
-from .widgets import Card, Segmented, Switch, set_chip
+from .widgets import Card, Segmented, Switch, nav_groups, set_chip
 
 
 def _clear(lay: QtWidgets.QLayout):
@@ -62,6 +62,9 @@ class ErrorRow(QtWidgets.QFrame):
 
 class OtherPage(QtWidgets.QWidget):
     SECTIONS = ("fix", "install", "polkit", "laptop", "kitty", "look", "scroll", "tools", "backups")
+    NAV_GROUPS = (("system", ["fix", "install", "polkit", "tools", "backups"]),
+                  ("devices", ["laptop", "scroll"]), ("look", ["look", "kitty"]))
+    KIND = "other"
 
     def __init__(self, win):
         super().__init__()
@@ -85,8 +88,8 @@ class OtherPage(QtWidgets.QWidget):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.clicked.connect(lambda _=False, k=key: self.show_section(k))
             grp.addButton(b)
-            sl.addWidget(b)
             self.nav[key] = b
+        self.nav_heads = nav_groups(sl, self.nav, self.NAV_GROUPS, f"{self.KIND}", win)
         sl.addStretch()
         lay.addWidget(side)
 
@@ -817,6 +820,8 @@ class OtherPage(QtWidgets.QWidget):
     def retranslate(self):
         for k, b in self.nav.items():
             b.setText(t("sec." + k).replace("&", "&&"))
+        for h in self.nav_heads:
+            h.retranslate()
         self.title.setText(t("sec." + self.win.cfg.get("other_section", "fix")))
         self.btn_scan.setText(t("fix.scan"))
         self.btn_all.setText(t("fix.all"))
