@@ -53,18 +53,16 @@ def qss(accent: str) -> str:
     #Side {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 16px; }}
     QPushButton#Nav {{ background: transparent; border: none; border-radius: 10px; padding: 9px 14px;
                        text-align: left; color: {MUTED}; }}
-    QPushButton#NavHead {{ background: transparent; border: none; color: {accent}; font-size: 8pt; font-weight: 700;
-                           letter-spacing: 1.5px; text-align: left; padding: 12px 8px 4px 10px; }}
-    QPushButton#NavHead:hover {{ color: {TEXT}; }}
+    QPushButton#NavHead {{ background: transparent; border: none; color: #6b788a; font-size: 9pt; font-weight: 600;
+                           text-align: left; padding: 14px 8px 4px 14px; }}
+    QPushButton#NavHead:hover {{ color: {MUTED}; }}
     QPushButton#Nav:hover {{ background: {SURFACE2}; color: {TEXT}; }}
-    QPushButton#Nav:checked {{ background: {SURFACE2}; color: {TEXT}; font-weight: 600;
-                               border-left: 3px solid {accent}; border-top-left-radius: 4px;
-                               border-bottom-left-radius: 4px; }}
+    QPushButton#Nav:checked {{ background: {SURFACE2}; color: {TEXT}; }}
     #Card {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
     #CardTitle {{ font-size: 10.5pt; font-weight: 600; }}
     #RowLabel {{ color: {MUTED}; }}
     #Value {{ color: {TEXT}; font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; }}
-    #PageTitle {{ font-size: 16pt; font-weight: 700; }}
+    #PageTitle {{ font-size: 15pt; font-weight: 600; }}
     QSlider:horizontal {{ min-height: 24px; background: transparent; }}
     QSlider::groove:horizontal {{ height: 6px; background: {SURFACE2}; border-radius: 3px; }}
     QSlider::sub-page:horizontal {{ background: {accent}; border-radius: 3px; }}
@@ -106,10 +104,10 @@ def qss(accent: str) -> str:
     #TabBox {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; }}
     #TabBox QPushButton#Seg {{ padding: 7px 22px; font-weight: 600; }}
     QPushButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 10px; padding: 8px 16px; }}
-    QPushButton:hover {{ border-color: {accent}; }}
+    QPushButton:hover {{ border-color: #3a4a5f; background: #1f2a38; }}
     QPushButton:disabled {{ color: #4d5a6b; border-color: {SURFACE2}; }}
     QPushButton#Primary {{ background: {accent}; border: 1px solid {accent}; color: {on}; font-weight: 600; }}
-    QPushButton#Primary:hover {{ background: {accent}; border-color: #ffffff; }}
+    QPushButton#Primary:hover {{ background: {accent}; border-color: {accent}; }}
     QPushButton#Primary:disabled {{ background: {SURFACE2}; border-color: {SURFACE2}; color: #4d5a6b; }}
     QPushButton#Danger:hover {{ border-color: {DANGER}; color: {DANGER}; }}
     QPushButton#Outline {{ background: transparent; border: 1px solid {accent}; color: {accent}; font-weight: 600; }}
@@ -135,7 +133,7 @@ def qss(accent: str) -> str:
     #ScrollInner {{ background: transparent; }}
     QScrollBar:vertical {{ width: 8px; background: transparent; margin: 4px 0; }}
     QScrollBar::handle:vertical {{ background: {BORDER}; border-radius: 4px; min-height: 30px; }}
-    QScrollBar::handle:vertical:hover {{ background: {accent}; }}
+    QScrollBar::handle:vertical:hover {{ background: #3a4a5f; }}
     QScrollBar:horizontal {{ height: 8px; background: transparent; }}
     QScrollBar::handle:horizontal {{ background: {BORDER}; border-radius: 4px; min-width: 30px; }}
     QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {{ width: 0; height: 0; background: none; }}
@@ -146,10 +144,8 @@ def qss(accent: str) -> str:
     QPushButton#KeyBtn {{ background: {BG}; font-family: "JetBrains Mono", "Hack", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", monospace;
                           font-weight: 600; }}
     #Warn {{ background: transparent; border: 1px solid {DANGER}; border-radius: 11px; color: {DANGER}; font-weight: 700; }}
-    #ChipOk {{ background: transparent; border: 1px solid {OK}; border-radius: 9px; padding: 2px 9px;
-               color: {OK}; font-size: 9pt; font-weight: 600; }}
-    #ChipWarn {{ background: transparent; border: 1px solid #d29922; border-radius: 9px; padding: 2px 9px;
-                 color: #d29922; font-size: 9pt; font-weight: 600; }}
+    #ChipOk {{ background: transparent; border: none; padding: 0; color: {OK}; font-size: 9pt; }}
+    #ChipWarn {{ background: transparent; border: none; padding: 0; color: #d29922; font-size: 9pt; }}
     #Mono {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-weight: 600; color: {accent}; }}
     #Code {{ font-family: "JetBrains Mono", "Hack", "Consolas", monospace; font-size: 9pt; color: {MUTED};
              background: {BG}; border-radius: 6px; padding: 4px 8px; }}

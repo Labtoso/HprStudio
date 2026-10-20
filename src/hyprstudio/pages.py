@@ -722,7 +722,7 @@ class WaybarPage(EditorPage):
 
     def update_info(self):
         ok = model.which("waybar") and not getattr(self.win, "_fake_missing", False)
-        self.info.setText("Waybar · " + ("✓" if ok else t("fmt.none")))
+        self.info.setText("Waybar · " + (t("pkg.installed") if ok else t("fmt.none")))
         if hasattr(self, "btn_install"):
             self.btn_install.setVisible(not ok)
             self.btn_install.setText(t("wb.install"))
@@ -968,7 +968,7 @@ class LauncherPage(EditorPage):
             self._pending_push = None
             self.use_everywhere()  # Installation fertig → Kürzel und Waybar jetzt umstellen
         ok = app == "llauncher" or model.which(app)
-        self.info.setText(f"{t('app.' + app)} · " + ("✓" if ok else t("fmt.none")))
+        self.info.setText(f"{t('app.' + app)} · " + (t("pkg.installed") if ok else t("fmt.none")))
         if hasattr(self, "btn_inst_app"):
             self.btn_inst_app.setVisible(not ok)
             self.btn_inst_app.setText(t("launcher.install", app=app.capitalize()))

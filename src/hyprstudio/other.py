@@ -469,7 +469,7 @@ class OtherPage(QtWidgets.QWidget):
         set_chip(self.lt_chips["laptop"], dev["laptop"], t("laptop.is_laptop") if dev["laptop"] else t("laptop.desktop"))
         for key, ok in tools.items():
             name = hardware.volume_tool() if key == "volume" else key
-            set_chip(self.lt_chips[key], ok, f"{name} ✓" if ok else f"{name} ✗")
+            set_chip(self.lt_chips[key], ok, name)
         missing = not (tools["brightnessctl"] and tools["playerctl"])
         self.lt_install.setText(t("gate.install", name="brightnessctl + playerctl"))
         self.lt_install.setVisible(missing)

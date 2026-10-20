@@ -314,7 +314,6 @@ class BindEditor(QtWidgets.QWidget):
         top = QtWidgets.QHBoxLayout()
         top.setSpacing(8)
         self.btn_add = QtWidgets.QPushButton()
-        self.btn_add.setObjectName("Primary")
         self.btn_tpl = QtWidgets.QPushButton()
         self.tpl_menu = QtWidgets.QMenu(self.btn_tpl)
         self.tpl_menu.aboutToShow.connect(self._fill_menu)

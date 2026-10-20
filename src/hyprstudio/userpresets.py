@@ -22,7 +22,6 @@ class UserPresetsMixin:
     def build_user_presets(self, layout):
         row = QtWidgets.QHBoxLayout()
         self.btn_save_preset = QtWidgets.QPushButton()
-        self.btn_save_preset.setObjectName("Primary")
         self.btn_import_preset = QtWidgets.QPushButton()
         for b in (self.btn_save_preset, self.btn_import_preset):
             b.setCursor(Qt.CursorShape.PointingHandCursor)

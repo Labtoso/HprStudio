@@ -94,11 +94,12 @@ def app_icon() -> QtGui.QIcon:
 # ---------- Grundbausteine ----------
 
 def set_chip(lb: QtWidgets.QLabel, ok: bool, text: str) -> None:
-    """Statusschild (grün = ok, gelb = Hinweis); Stil direkt am Widget, damit die Größe stimmt."""
+    """Status als schlichter Text mit farbigem Punkt (grün = ok, gelb = Hinweis); Stil direkt am Widget."""
     col = theme.OK if ok else "#d29922"
-    lb.setText(text)
-    lb.setStyleSheet(f"QLabel {{ background: transparent; border: 1px solid {col}; border-radius: 10px;"
-                     f" padding: 3px 10px; color: {col}; font-size: 9pt; font-weight: 600; }}")
+    lb.setTextFormat(Qt.TextFormat.RichText)
+    lb.setText(f'<span style="color:{col}">●</span>&nbsp;&nbsp;{text}')
+    lb.setStyleSheet(f"QLabel {{ background: transparent; border: none; padding: 2px 4px 2px 0;"
+                     f" color: {theme.MUTED}; font-size: 9pt; }}")
     lb.setMinimumSize(0, 0)
     lb.setMaximumSize(16777215, 16777215)
     lb.adjustSize()
@@ -780,10 +781,35 @@ class NavHeader(QtWidgets.QPushButton):
         for b in self.buttons:
             b.setVisible(not c or b.isChecked())
         self.retranslate()
+        self.update()
 
     def retranslate(self):
-        self.setText(("▸  " if self.collapsed() else "▾  ") + t("nav." + self.key).upper())
+        self.setText(t("nav." + self.key))
         self.setToolTip(t("nav.fold") if not self.collapsed() else t("nav.unfold"))
+
+    def enterEvent(self, e):
+        super().enterEvent(e)
+        self.update()
+
+    def leaveEvent(self, e):
+        super().leaveEvent(e)
+        self.update()
+
+    def paintEvent(self, e):
+        """Kleiner Pfeil rechts – nur beim Darüberfahren oder wenn eingeklappt (wie in Dateimanagern)."""
+        super().paintEvent(e)
+        if not (self.underMouse() or self.collapsed()):
+            return
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        p.setPen(QtGui.QPen(QtGui.QColor(theme.MUTED), 1.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                            Qt.PenJoinStyle.RoundJoin))
+        cx, cy, d = self.width() - 16, self.height() - 12, 3.5
+        pts = ([QtCore.QPointF(cx - d / 2, cy - d), QtCore.QPointF(cx + d / 2, cy), QtCore.QPointF(cx - d / 2, cy + d)]
+               if self.collapsed() else
+               [QtCore.QPointF(cx - d, cy - d / 2), QtCore.QPointF(cx, cy + d / 2), QtCore.QPointF(cx + d, cy - d / 2)])
+        p.drawPolyline(pts)
+        p.end()
 
 
 def nav_groups(layout, nav: dict, groups, kind: str, win) -> list:
@@ -1031,7 +1057,7 @@ class FontCombo(SearchCombo):
         get = t("font.get")
         for archive, fam in fonts.CATALOG:
             if fam not in fams:
-                self.addItem(f"⬇  {fam}  ·  {get}", ("get", archive))
+                self.addItem(f"{fam}  –  {get}", ("get", archive))
                 self.setItemData(self.count() - 1, t("font.get_tip"), Qt.ItemDataRole.ToolTipRole)
                 self.setItemData(self.count() - 1, QtGui.QColor(theme.MUTED), Qt.ItemDataRole.ForegroundRole)
         self.setCurrentIndex(max(0, self.findData(("font", value))))
