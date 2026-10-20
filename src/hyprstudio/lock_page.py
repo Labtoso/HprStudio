@@ -72,29 +72,38 @@ def render_lock(s: dict, w: int, h: int, wallpaper: str, radius: int = 12) -> Qt
         shade = QtGui.QColor(0, 0, 0, int(min(1.0, 1 - b) * 255)) if b < 1 else QtGui.QColor(255, 255, 255, int(min(1.0, b - 1) * 255))
         p.fillRect(QtCore.QRectF(0, 0, w, h), shade)
 
-    cx, cy = w / 2, h / 2
-    y = hyprlock.layout(s)
+    W, H = w / k, 1080.0  # Bildschirm in 1080p-Koordinaten (wie in hyprlock.conf)
+    pos, hs = hyprlock.place(s), hyprlock.heights(s)
     text = _qcolor(s["text_color"])
 
-    def label(txt: str, size: float, yy: int, bold=False):
+    def box(e: str, bw: float) -> tuple:
+        """Rechteck in Vorschau-Pixeln – gleiche Rechnung wie hyprlock: Abstand von der Ankerkante."""
+        x, y, ha, va = pos[e]
+        bh = hs[e]
+        left = x if ha == "left" else W + x - bw if ha == "right" else W / 2 + x - bw / 2
+        top = H / 2 - y - bh / 2 if va == "center" else H - y - bh if va == "bottom" else -y
+        return QtCore.QRectF(left * k, top * k, bw * k, bh * k), ha
+
+    def label(e: str, txt: str, size: float, bold=False):
         f = QtGui.QFont(s["font"] or "Sans")
         f.setPixelSize(max(4, int(size * k * 1.33)))
         f.setBold(bold)
         p.setFont(f)
         p.setPen(text)
-        fm = QtGui.QFontMetricsF(f)
-        r = QtCore.QRectF(0, cy - yy * k - fm.height() / 2, w, fm.height())
-        p.drawText(r, Qt.AlignmentFlag.AlignCenter, txt)
+        r, ha = box(e, QtGui.QFontMetricsF(f).horizontalAdvance(txt) / k + 4)
+        align = {"left": Qt.AlignmentFlag.AlignLeft, "right": Qt.AlignmentFlag.AlignRight}.get(
+            ha, Qt.AlignmentFlag.AlignHCenter)
+        p.drawText(r, align | Qt.AlignmentFlag.AlignVCenter, txt)
 
     now = datetime.datetime.now()
-    if s["clock"]:
+    if "clock" in pos:
         fmt = {"24": "%H:%M", "12": "%I:%M %p", "sec": "%H:%M:%S"}[s["clock_fmt"]]
-        label(now.strftime(fmt), s["clock_size"], y["clock"], True)
-    if s["date"]:
-        label(now.strftime(hyprlock.DATE_FMT[s["date_fmt"]]), s["date_size"], y["date"])
-    if s["avatar"]:
-        d = s["avatar_size"] * k
-        r = QtCore.QRectF(cx - d / 2, cy - y["avatar"] * k - d / 2, d, d)
+        label("clock", now.strftime(fmt), s["clock_size"], True)
+    if "date" in pos:
+        label("date", now.strftime(hyprlock.DATE_FMT[s["date_fmt"]]), s["date_size"])
+    if "avatar" in pos:
+        r, _ = box("avatar", s["avatar_size"])
+        d = r.width()
         av = QtGui.QImage(os.path.expanduser(s["avatar_path"])) if s["avatar_path"] else QtGui.QImage()
         circ = QtGui.QPainterPath()
         circ.addEllipse(r)
@@ -112,13 +121,13 @@ def render_lock(s: dict, w: int, h: int, wallpaper: str, radius: int = 12) -> Qt
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.setPen(QtGui.QPen(_qcolor(s["accent"]), max(1.0, s["outline"] * k)))
         p.drawEllipse(r)
-    if s["greet"] and s["greet_text"].strip():
-        label(s["greet_text"].replace("$USER", os.environ.get("USER") or os.environ.get("USERNAME") or "user"),
-              16, y["greet"])
+    if "greet" in pos:
+        label("greet", s["greet_text"].replace("$USER", os.environ.get("USER") or os.environ.get("USERNAME") or "user"),
+              16)
 
     # Passwortfeld
-    iw, ih = s["input_w"] * k, s["input_h"] * k
-    r = QtCore.QRectF(cx - iw / 2, cy - y["input"] * k - ih / 2, iw, ih)
+    r, _ = box("input", s["input_w"])
+    ih = r.height()
     rad = ih / 2 if s["rounding"] < 0 else min(ih / 2, s["rounding"] * k)
     p.setBrush(_qcolor(s["inner_color"]))
     pen = QtGui.QPen(_qcolor(s["accent"]), s["outline"] * k) if s["outline"] else QtGui.QPen(Qt.PenStyle.NoPen)
@@ -196,6 +205,11 @@ class LockEditor(QtWidgets.QWidget):
         lay.addWidget(c)
 
         # Hintergrund
+        c = Card("lock.layout", self)
+        self.cards.append(c)
+        c.choice("layout", hyprlock.LAYOUTS, "llay.", label_key="lock.layout")
+        lay.addWidget(c)
+
         c = Card("lock.bg", self)
         self.cards.append(c)
         c.choice("bg", hyprlock.BGS, "lbg.", label_key="lock.bg_src")

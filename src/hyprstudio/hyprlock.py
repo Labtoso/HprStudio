@@ -19,6 +19,20 @@ from .model import MARK, rgba_hypr
 
 BGS = ("screenshot", "wallpaper", "image", "color")
 CLOCKS = ("24", "12", "sec")
+# Anordnung: wo Uhr, Datum, Begrüßung, Profilbild und Passwortfeld sitzen
+LAYOUTS = ("center", "bottom_left", "bottom_right", "top_left", "left", "right", "top", "bottom", "split")
+# je Anordnung: Gruppen (halign, valign, Elemente von oben nach unten)
+GROUPS = {
+    "bottom_left": [("left", "bottom", ["avatar", "clock", "date", "greet", "input"])],
+    "bottom_right": [("right", "bottom", ["avatar", "clock", "date", "greet", "input"])],
+    "top_left": [("left", "top", ["clock", "date"]), ("left", "bottom", ["avatar", "greet", "input"])],
+    "left": [("left", "center", ["avatar", "clock", "date", "greet", "input"])],
+    "right": [("right", "center", ["avatar", "clock", "date", "greet", "input"])],
+    "top": [("center", "top", ["clock", "date"]), ("center", "bottom", ["avatar", "greet", "input"])],
+    "bottom": [("center", "bottom", ["avatar", "clock", "date", "greet", "input"])],
+    "split": [("left", "top", ["clock", "date"]), ("right", "bottom", ["avatar", "greet", "input"])],
+}
+MARGIN_X, MARGIN_Y, GAP = 90, 70, 14
 DATES = ("long", "short", "iso")
 DATE_FMT = {"long": "%A, %d %B", "short": "%d.%m.%Y", "iso": "%Y-%m-%d"}
 
@@ -32,7 +46,7 @@ LOCK_DEFAULT = {
     "accent": "#89b4faff", "inner_color": "#1e1e2ecc", "input_text": "#cdd6f4ff",
     "check_color": "#f9e2afff", "fail_color": "#f38ba8ff",
     "input_w": 300, "input_h": 52, "rounding": -1, "outline": 3, "input_y": -120,
-    "placeholder": "Password …", "fade_empty": False, "dots_center": True,
+    "placeholder": "Password …", "fade_empty": False, "dots_center": True, "layout": "center",
     "hide_cursor": True, "grace": 0, "ignore_empty": True, "lock_bind": False,
 }
 
@@ -57,6 +71,50 @@ PRESETS = {
                 "avatar": True},
     "rose": {"bg": "wallpaper", "accent": "#ebbcbaff", "inner_color": "#191724dd", "text_color": "#e0def4ff",
              "input_text": "#e0def4ff", "fail_color": "#eb6f92ff", "check_color": "#f6c177ff", "avatar": True},
+    # ab 1.28: andere Anordnungen – Ecken, Seiten, oben/unten, geteilt
+    "corner": {"layout": "bottom_left", "bg": "wallpaper", "blur_passes": 0, "brightness": 0.85, "clock_size": 120,
+               "date_size": 24, "greet": False, "accent": "#ffffff55", "inner_color": "#00000066",
+               "text_color": "#ffffffff", "input_text": "#ffffffff", "input_w": 260, "input_h": 46, "outline": 2},
+    "dracula": {"layout": "bottom_right", "bg": "color", "bg_color": "#282a36ff", "accent": "#bd93f9ff",
+                "inner_color": "#44475aff", "text_color": "#f8f8f2ff", "input_text": "#f8f8f2ff",
+                "fail_color": "#ff5555ff", "check_color": "#f1fa8cff", "rounding": 10, "clock_size": 110,
+                "avatar": True, "avatar_size": 90},
+    "nightstand": {"layout": "top_left", "bg": "color", "bg_color": "#000000ff", "clock_size": 170,
+                   "clock_fmt": "24", "date_size": 28, "greet": False, "text_color": "#ff9e64ff",
+                   "accent": "#ff9e6455", "inner_color": "#00000000", "input_text": "#ff9e64ff", "outline": 1,
+                   "rounding": 0, "input_w": 240, "input_h": 40, "fade_empty": True},
+    "sidebar": {"layout": "left", "bg": "wallpaper", "blur_passes": 3, "blur_size": 8, "brightness": 0.55,
+                "accent": "#ffffff40", "inner_color": "#ffffff14", "text_color": "#ffffffff",
+                "input_text": "#ffffffff", "avatar": True, "avatar_size": 120, "clock_size": 100, "outline": 2},
+    "sidebar_right": {"layout": "right", "bg": "screenshot", "blur_passes": 4, "brightness": 0.6,
+                      "accent": "#a6e3a1ff", "inner_color": "#11111bcc", "text_color": "#cdd6f4ff",
+                      "input_text": "#cdd6f4ff", "clock_fmt": "12", "rounding": 14},
+    "everforest": {"layout": "top", "bg": "color", "bg_color": "#2d353bff", "accent": "#a7c080ff",
+                   "inner_color": "#343f44ff", "text_color": "#d3c6aaff", "input_text": "#d3c6aaff",
+                   "fail_color": "#e67e80ff", "check_color": "#dbbc7fff", "clock_size": 130, "rounding": 8,
+                   "avatar": True},
+    "kanagawa": {"layout": "bottom", "bg": "wallpaper", "blur_passes": 2, "brightness": 0.65,
+                 "accent": "#7e9cd8ff", "inner_color": "#1f1f28dd", "text_color": "#dcd7baff",
+                 "input_text": "#dcd7baff", "fail_color": "#e82424ff", "check_color": "#e6c384ff",
+                 "date_fmt": "short", "clock_size": 80, "input_w": 360},
+    "split": {"layout": "split", "bg": "screenshot", "blur_passes": 3, "brightness": 0.7, "clock_size": 140,
+              "clock_fmt": "sec", "date_fmt": "iso", "accent": "#33ccffee", "inner_color": "#0b1220dd",
+              "text_color": "#e6edf5ff", "input_text": "#e6edf5ff", "rounding": 6, "greet": True},
+    "neon": {"layout": "bottom_right", "bg": "color", "bg_color": "#0d0221ff", "accent": "#ff2a6dff",
+             "inner_color": "#1a0b3bee", "text_color": "#05d9e8ff", "input_text": "#05d9e8ff",
+             "fail_color": "#ff2a6dff", "check_color": "#d1f7ffff", "clock_fmt": "sec", "clock_size": 100,
+             "outline": 4, "rounding": 0},
+    "paper": {"layout": "top_left", "bg": "color", "bg_color": "#f4f1eaff", "accent": "#3c3836ff",
+              "inner_color": "#ffffffff", "text_color": "#3c3836ff", "input_text": "#3c3836ff",
+              "fail_color": "#cc241dff", "check_color": "#d79921ff", "clock_size": 110, "outline": 2,
+              "rounding": 4, "date_fmt": "long"},
+    "photo": {"layout": "bottom_left", "bg": "wallpaper", "blur_passes": 0, "brightness": 1.0, "clock": True,
+              "clock_size": 72, "date_size": 18, "greet": False, "accent": "#00000000",
+              "inner_color": "#00000088", "text_color": "#ffffffff", "input_text": "#ffffffff",
+              "outline": 0, "rounding": 12, "input_w": 220, "input_h": 40},
+    "glass_right": {"layout": "right", "bg": "wallpaper", "blur_passes": 4, "blur_size": 10, "brightness": 0.8,
+                    "accent": "#ffffff66", "inner_color": "#ffffff1a", "text_color": "#ffffffff",
+                    "input_text": "#ffffffff", "avatar": True, "avatar_size": 100, "clock_size": 90},
 }
 LOOK_KEYS = tuple(k for k in LOCK_DEFAULT if k not in ("lock_bind", "hide_cursor", "grace", "ignore_empty",
                                                          "greet_text", "avatar_path", "bg_path", "placeholder"))
@@ -71,7 +129,7 @@ def lock_state(saved: dict | None) -> dict:
             s[k] = v
         elif isinstance(s[k], float) and type(v) is int:
             s[k] = float(v)
-    for k, opts in (("bg", BGS), ("clock_fmt", CLOCKS), ("date_fmt", DATES)):
+    for k, opts in (("bg", BGS), ("clock_fmt", CLOCKS), ("date_fmt", DATES), ("layout", LAYOUTS)):
         if s[k] not in opts:
             s[k] = LOCK_DEFAULT[k]
     return s
@@ -112,10 +170,52 @@ def _q(text: str) -> str:
     return text.replace("\n", " ").strip()
 
 
-def _label(text: str, color: str, size: int, font: str, y: int) -> list:
-    return ["label {", "    monitor =", f"    text = {text}", f"    color = {rgba_hypr(color)}",
-            f"    font_size = {size}", f"    font_family = {font}", f"    position = 0, {y}",
-            "    halign = center", "    valign = center", "}", ""]
+def _where(p: tuple) -> list:
+    x, y, h, v = p
+    return [f"    position = {x}, {y}", f"    halign = {h}", f"    valign = {v}"]
+
+
+def _label(text: str, color: str, size: int, font: str, p: tuple) -> list:
+    align = [f"    text_align = {p[2]}"] if p[2] != "center" else []
+    return (["label {", "    monitor =", f"    text = {text}", f"    color = {rgba_hypr(color)}",
+             f"    font_size = {size}", f"    font_family = {font}"] + align + _where(p) + ["}", ""])
+
+
+def heights(s: dict) -> dict:
+    """Ungefähre Höhe jedes Elements in Pixeln (1080p) – zum Stapeln."""
+    return {"clock": int(s["clock_size"] * 1.25), "date": int(s["date_size"] * 1.5), "greet": 24,
+            "avatar": s["avatar_size"], "input": s["input_h"]}
+
+
+def shown(s: dict) -> list:
+    return [e for e, on in (("avatar", s["avatar"]), ("clock", s["clock"]), ("date", s["date"]),
+                            ("greet", s["greet"] and bool(s["greet_text"].strip())), ("input", True)) if on]
+
+
+def place(s: dict) -> dict:
+    """Element → (x, y, halign, valign) wie in hyprlock: Abstand von der Ankerkante, y nach oben positiv."""
+    if s["layout"] == "center":  # unverändert wie bisher (bestehende Presets sehen gleich aus)
+        return {e: (0, y, "center", "center") for e, y in layout(s).items()}
+    hs, on, out = heights(s), shown(s), {}
+    for halign, valign, items in GROUPS[s["layout"]]:
+        items = [e for e in items if e in on]
+        x = MARGIN_X if halign == "left" else -MARGIN_X if halign == "right" else 0
+        if valign == "bottom":
+            cur = MARGIN_Y
+            for e in reversed(items):
+                out[e] = (x, cur, halign, valign)
+                cur += hs[e] + GAP
+        elif valign == "top":
+            cur = MARGIN_Y
+            for e in items:
+                out[e] = (x, -cur, halign, valign)
+                cur += hs[e] + GAP
+        else:  # mittig gestapelt
+            top = (sum(hs[e] for e in items) + GAP * (len(items) - 1)) / 2
+            for e in items:
+                out[e] = (x, int(top - hs[e] / 2), halign, valign)
+                top -= hs[e] + GAP
+    return out
 
 
 def layout(s: dict) -> dict:
@@ -146,7 +246,7 @@ def clock_text(s: dict) -> str:
 
 def lock_conf(s: dict, wallpaper: str = "") -> str:
     font = _q(s["font"]) or "Sans"
-    y = layout(s)
+    y = place(s)
     out = [f"# {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben", "",
            "general {", f"    hide_cursor = {str(s['hide_cursor']).lower()}", f"    grace = {s['grace']}",
            f"    ignore_empty_input = {str(s['ignore_empty']).lower()}", "}", "",
@@ -160,7 +260,7 @@ def lock_conf(s: dict, wallpaper: str = "") -> str:
     if s["avatar"] and s["avatar_path"]:
         out += ["image {", "    monitor =", f"    path = {s['avatar_path']}", f"    size = {s['avatar_size']}",
                 "    rounding = -1", f"    border_size = {s['outline']}", f"    border_color = {rgba_hypr(s['accent'])}",
-                f"    position = 0, {y['avatar']}", "    halign = center", "    valign = center", "}", ""]
+                ] + _where(y["avatar"]) + ["}", ""]
     if s["clock"]:
         out += _label(clock_text(s), s["text_color"], s["clock_size"], font, y["clock"])
     if s["date"]:
@@ -176,7 +276,7 @@ def lock_conf(s: dict, wallpaper: str = "") -> str:
             f"    placeholder_text = {_q(s['placeholder'])}", "    fail_text = $FAIL ($ATTEMPTS)",
             f"    fade_on_empty = {str(s['fade_empty']).lower()}", f"    dots_center = {str(s['dots_center']).lower()}",
             "    dots_size = 0.25", "    dots_spacing = 0.3",
-            f"    position = 0, {y['input']}", "    halign = center", "    valign = center", "}"]
+            ] + _where(y["input"]) + ["}"]
     return "\n".join(out) + "\n"
 
 
