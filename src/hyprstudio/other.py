@@ -61,7 +61,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "kitty", "look", "scroll", "tools", "backups")
+    SECTIONS = ("fix", "install", "polkit", "kitty", "look", "scroll", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -237,6 +237,36 @@ class OtherPage(QtWidgets.QWidget):
         ll.addWidget(self.look_card)
         ll.addStretch()
 
+        # --- Polkit-Agent: ohne ihn können Programme unter Hyprland nicht nach dem Admin-Passwort fragen ---
+        self.p_polkit, pkl = self._page()
+        self.pk_card = Card("polkit.title", self)
+        prow = QtWidgets.QHBoxLayout()
+        prow.setSpacing(10)
+        self.pk_chip = QtWidgets.QLabel()
+        self.pk_run = QtWidgets.QLabel()
+        self.pk_install = QtWidgets.QPushButton()
+        self.pk_install.setObjectName("Primary")
+        self.pk_install.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.pk_install.clicked.connect(lambda: self.install_keys(["hyprpolkitagent"]))
+        self.pk_start = QtWidgets.QPushButton()
+        self.pk_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.pk_start.clicked.connect(self.start_polkit)
+        prow.addWidget(self.pk_chip)
+        prow.addWidget(self.pk_run)
+        prow.addStretch()
+        prow.addWidget(self.pk_install)
+        prow.addWidget(self.pk_start)
+        self.pk_card.layout().addLayout(prow)
+        self.pk_sw = Switch()
+        self.pk_sw.toggled.connect(self.set_polkit)
+        self.pk_card._add("polkit.auto", self.pk_sw, None, None, None, label_key="polkit.auto")
+        self.pk_hint = QtWidgets.QLabel()
+        self.pk_hint.setObjectName("RowLabel")
+        self.pk_hint.setWordWrap(True)
+        self.pk_card.layout().addWidget(self.pk_hint)
+        pkl.addWidget(self.pk_card)
+        pkl.addStretch()
+
         # --- Scrollrichtung (schreibt über Hyprland und wendet sofort an) ---
         self.p_scroll, scl = self._page()
         self.scroll_card = Card("scroll.title", self)
@@ -271,7 +301,7 @@ class OtherPage(QtWidgets.QWidget):
                       "cursor": Gate(self.cursor, "hyprcursor", win),
                       "lock": Gate(self.lock, "hyprlock", win)}
         self.stack.addWidget(self.gates["kitty"])
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "polkit": self.p_polkit, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
                       "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
@@ -303,6 +333,8 @@ class OtherPage(QtWidgets.QWidget):
             self.refresh_look()
         if key == "scroll":
             self.refresh_scroll()
+        if key == "polkit":
+            self.refresh_polkit()
         if key == "backups":
             self.load_backups()
         elif key == "install":
@@ -335,12 +367,58 @@ class OtherPage(QtWidgets.QWidget):
         if hp.state.get("qt_theme") != qt:
             hp.state["qt_theme"] = qt
             hp.changed()
-            hdir = model.config_home() / "hypr"
-            fmt = model.hypr_format(hdir)
-            if fmt and (hdir / f"hyprstudio.{fmt}").is_file():  # Hyprland wird schon von Hypr Studio gestaltet
-                self._apply_hypr()
-            else:
+            if not self._apply_hypr_if_managed():
                 self.win.log(t("look.qt_hint"))
+
+    def _apply_hypr_if_managed(self) -> bool:
+        """Hyprland nur anwenden, wenn es schon von Hypr Studio gestaltet wird (sonst beim nächsten Anwenden)."""
+        hdir = model.config_home() / "hypr"
+        fmt = model.hypr_format(hdir)
+        if fmt and (hdir / f"hyprstudio.{fmt}").is_file():
+            self._apply_hypr()
+            return True
+        return False
+
+    # ----- Polkit-Agent -----
+    def refresh_polkit(self):
+        self.pk_card.retranslate()
+        hp = self.win.hypr_page
+        inst = packages.installed("hyprpolkitagent")
+        avail = packages.available("hyprpolkitagent", packages.manager())
+        set_chip(self.pk_chip, inst, t("pkg.installed") if inst else t("pkg.missing") if avail else t("pkg.unavailable"))
+        running = inst and packages.polkit_agent()
+        set_chip(self.pk_run, running, t("polkit.running") if running else t("polkit.stopped"))
+        self.pk_run.setVisible(inst)
+        self.pk_install.setText(t("gate.install", name="hyprpolkitagent"))
+        self.pk_install.setVisible(not inst)
+        self.pk_install.setEnabled(avail)
+        self.pk_start.setText(t("polkit.start"))
+        self.pk_start.setEnabled(inst)
+        self.pk_hint.setText(t("polkit.hint"))
+        # noch nie selbst geschaltet: an, sobald installiert oder wenn die Config den Agent schon startet
+        if not hp.state["polkit_managed"] and (inst or model.detect_polkit(model.config_home() / "hypr", hp.state)):
+            self.set_polkit(True)
+        self.pk_sw.set_now(hp.state["polkit_agent"])
+
+    def set_polkit(self, on: bool):
+        hp = self.win.hypr_page
+        if hp.state["polkit_managed"] and hp.state["polkit_agent"] == on:
+            return
+        hp.state["polkit_agent"] = bool(on)
+        hp.state["polkit_managed"] = True
+        hp.state["autostart"] = [c for c in hp.state["autostart"] if not model._is_polkit_cmd(c)]
+        hp.refresh_controls()
+        hp.changed()
+        self.win.log("")
+        self.win.log(t("polkit.on") if on else t("polkit.off"))
+        if not self._apply_hypr_if_managed():
+            self.win.log(t("polkit.later"))
+
+    def start_polkit(self):
+        self.win.log("")
+        ok = model.run(["systemctl", "--user", "start", "hyprpolkitagent"], self.win.log)
+        self.win.set_status(t("polkit.started") if ok else t("polkit.start_fail"))
+        QtCore.QTimer.singleShot(800, self.refresh_polkit)
         self.refresh_look()
         self.win.set_status(t("look.active", name=t("look." + mode)))
 
