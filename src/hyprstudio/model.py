@@ -256,7 +256,7 @@ EXEC_SUGGEST = ("kitty", "foot", "alacritty", "dolphin", "nautilus", "thunar", "
                 "rofi -show drun", "wofi --show drun", "fuzzel", "hyprlauncher", "hyprlock", "wlogout",
                 'grim -g "$(slurp)" - | wl-copy', "grim - | wl-copy", "hyprpicker -a", "pavucontrol", "code",
                 "cliphist list | rofi -dmenu | cliphist decode | wl-copy", "swaync-client -t")
-SPECIAL_KEYS = ("mouse:272", "mouse:273", "mouse_down", "mouse_up", "Print", "space", "Return", "Tab", "Escape",
+SPECIAL_KEYS = ("SUPER_L", "mouse:272", "mouse:273", "mouse_down", "mouse_up", "Print", "space", "Return", "Tab", "Escape",
                 "XF86AudioRaiseVolume", "XF86AudioLowerVolume", "XF86AudioMute", "XF86AudioMicMute",
                 "XF86AudioPlay", "XF86AudioNext", "XF86AudioPrev", "XF86MonBrightnessUp", "XF86MonBrightnessDown",
                 "XF86PowerOff", "XF86Calculator")
@@ -315,6 +315,17 @@ def default_binds() -> list:
     return [dict(b) for k in ("basics", "focus", "workspaces", "special", "mouse") for b in TEMPLATES[k]]
 
 
+SUPER_ALONE = ("SUPER_L", "SUPER_R")
+
+
+def bind_flags(b: dict) -> list:
+    """Flags des Kürzels; Super allein braucht immer „release“, sonst würde jedes Super + X es auslösen."""
+    fl = [f for f in FLAGS if f in b.get("flags", [])]
+    if b.get("key") in SUPER_ALONE and "release" not in fl:
+        fl.append("release")
+    return fl
+
+
 def combo(mods, key: str) -> tuple:
     return tuple(sorted({MOD_ALIAS.get(m.upper(), m.upper()) for m in mods})), key.strip().lower()
 
@@ -358,7 +369,7 @@ def bind_lua(b: dict) -> str:
         "resize": lambda: "hl.dsp.window.resize()",
         "exit": lambda: "hl.dsp.exit()",
     }[a]()
-    flags = [f for f in FLAGS if f in b.get("flags", [])] + (["mouse"] if a in MOUSE_ACTIONS else [])
+    flags = bind_flags(b) + (["mouse"] if a in MOUSE_ACTIONS else [])
     extra = (", { " + ", ".join(f"{f} = true" for f in flags) + " }") if flags else ""
     return f"hl.bind({_lua_str(combo_text(b))}, {dsp}{extra})"
 
@@ -375,7 +386,7 @@ def bind_conf(b: dict) -> list:
     d = CONF_DSP.get(a) or {"exec": f"exec, {g}", "focus": f"movefocus, {g[:1]}", "movewin": f"movewindow, {g[:1]}",
                             "workspace": f"workspace, {g}", "movetows": f"movetoworkspace, {g}"}[a]
     mods = " ".join(b["mods"])
-    letters = "".join(c for f, c in (("locked", "l"), ("repeating", "e"), ("release", "r")) if f in b.get("flags", []))
+    letters = "".join(c for f, c in (("locked", "l"), ("repeating", "e"), ("release", "r")) if f in bind_flags(b))
     kind = "bindm" if a in MOUSE_ACTIONS else "bind" + letters
     # unbind entfernt vorher gesetzte Kürzel mit derselben Taste (aus hyprland.conf)
     return [f"unbind = {mods}, {b['key']}", f"{kind} = {mods}, {b['key']}, {d}"]

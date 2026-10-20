@@ -295,6 +295,12 @@ TEXT["en"].update({'paper.lib': 'Library', 'paper.get': 'Install wallpapers', 'p
 TEXT["de"].update({'sec.scroll': 'Scrollrichtung', 'scroll.title': 'Maus & Touchpad', 'scroll.mouse_natural': 'Maus umdrehen', 'scroll.natural_scroll': 'Touchpad umdrehen', 'mouse_natural': 'Scrollen umdrehen', 'tip.scroll': 'An = Inhalt folgt dem Finger (natürliches Scrollen); wird sofort angewendet'})
 TEXT["en"].update({'sec.scroll': 'Scroll direction', 'scroll.title': 'Mouse & touchpad', 'scroll.mouse_natural': 'Reverse mouse', 'scroll.natural_scroll': 'Reverse touchpad', 'mouse_natural': 'Reverse scrolling', 'tip.scroll': 'On = content follows your finger (natural scrolling); applied right away'})
 
+TEXT["de"].update({'sec.scroll': 'Maus & Touchpad', 'scroll.title': 'Scrollen & Tempo', 'scroll.sens': 'Empfindlichkeit', 'scroll.speed': 'Scrolltempo Touchpad', 'tip.sens': 'Zeigergeschwindigkeit von −1 (langsam) bis +1 (schnell), 0 = Standard; wird angewendet', 'tip.scroll_factor': 'Wie weit ein Wisch auf dem Touchpad scrollt; wird angewendet'})
+TEXT["en"].update({'sec.scroll': 'Mouse & touchpad', 'scroll.title': 'Scrolling & speed', 'scroll.sens': 'Sensitivity', 'scroll.speed': 'Touchpad scroll speed', 'tip.sens': 'Pointer speed from −1 (slow) to +1 (fast), 0 = default; applied right away', 'tip.scroll_factor': 'How far a touchpad swipe scrolls; applied right away'})
+
+TEXT["de"].update({'key.super_alone': 'Super allein', 'key.SUPER_L': 'Super allein'})
+TEXT["en"].update({'key.super_alone': 'Super alone', 'key.SUPER_L': 'Super alone'})
+
 _lang = "en"
 
 

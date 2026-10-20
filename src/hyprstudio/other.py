@@ -223,6 +223,15 @@ class OtherPage(QtWidgets.QWidget):
             sw.toggled.connect(lambda on, k=key: self.set_scroll(k, on))
             self.scroll_card._add("scroll." + key, sw, None, "tip.scroll", None, label_key="scroll." + key)
             self.scroll_sw[key] = sw
+        # Regler schreiben in den Hyprland-Zustand (Card ruft self.state / self.set)
+        self._apply_later = QtCore.QTimer(self)
+        self._apply_later.setSingleShot(True)
+        self._apply_later.setInterval(600)
+        self._apply_later.timeout.connect(self._apply_hypr)
+        self.switches = []
+        self.scroll_card.slider("sensitivity", -1.0, 1.0, 0.05, "{:+.2f}", tip="tip.sens", label_key="scroll.sens")
+        self.scroll_card.slider("scroll_factor", 0.1, 3.0, 0.1, "{:.1f}×", tip="tip.scroll_factor",
+                                label_key="scroll.speed")
         scl.addWidget(self.scroll_card)
         scl.addStretch()
 
@@ -289,8 +298,27 @@ class OtherPage(QtWidgets.QWidget):
         self.win.set_status(t("look.active", name=t("look." + mode)))
 
     # ----- Scrollrichtung -----
+    @property
+    def state(self) -> dict:
+        return self.win.hypr_page.state
+
+    def set(self, key, value):
+        """Regler unter Maus & Touchpad: Wert merken, kurz nach dem Loslassen anwenden."""
+        hp = self.win.hypr_page
+        if hp.state.get(key) == value:
+            return
+        hp.state[key] = value
+        hp.refresh_controls()
+        hp.changed()
+        self._apply_later.start()
+
+    def _apply_hypr(self):
+        self.win.log("")
+        self.win.hypr_page.apply()
+
     def refresh_scroll(self):
         self.scroll_card.retranslate()
+        self.scroll_card.refresh(self.win.hypr_page.state)
         hs = self.win.hypr_page.state
         for k, sw in self.scroll_sw.items():
             sw.set_now(bool(hs[k]))
@@ -491,7 +519,7 @@ class OtherPage(QtWidgets.QWidget):
 
     def retranslate(self):
         for k, b in self.nav.items():
-            b.setText(t("sec." + k))
+            b.setText(t("sec." + k).replace("&", "&&"))
         self.title.setText(t("sec." + self.win.cfg.get("other_section", "fix")))
         self.btn_scan.setText(t("fix.scan"))
         self.btn_all.setText(t("fix.all"))

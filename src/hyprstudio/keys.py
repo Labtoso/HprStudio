@@ -58,6 +58,8 @@ def mods_of(m) -> list:
 
 
 def combo_label(mods: list, key: str) -> str:
+    if key in model.SUPER_ALONE:
+        return t("key.super_alone")
     keyl = t("key." + key) if key and ("key." + key) in TEXT["de"] else key
     order = [m for m in ("SUPER", "CTRL", "ALT", "SHIFT") if m in mods]
     return " + ".join([t("mod." + m) for m in order] + ([keyl] if key else []))
@@ -99,6 +101,7 @@ class KeyButton(QtWidgets.QPushButton):
     def start(self):
         self.listening = True
         self._warn = False
+        self._mods_down = set()  # in dieser Aufnahme gedrückte Zusatztasten
         self.setText(t("keys.press"))
         self.setFocus()
         self.grabKeyboard()
@@ -130,6 +133,9 @@ class KeyButton(QtWidgets.QPushButton):
             if key:
                 self.set_combo(mods, key)
                 self.captured.emit(mods, key)
+        elif a.data() in model.SUPER_ALONE:
+            self.set_combo(["SUPER"], a.data())
+            self.captured.emit(self.mods, self.key)
         elif a.data():  # Sondertaste: gedrückte Zusatztasten bleiben
             self.set_combo(self.mods, a.data())
             self.captured.emit(self.mods, self.key)
@@ -138,8 +144,10 @@ class KeyButton(QtWidgets.QPushButton):
         if not self.listening:
             return super().keyPressEvent(e)
         if _v(e.key()) in {_v(k) for k in MOD_KEYS}:
+            self._mods_down.add(_v(e.key()))
             self._live(e.modifiers())
             return
+        self._mods_down.add(-1)  # normale Taste dabei → kein „Super allein“
         if _v(e.key()) == _v(K.Key_Escape) and not e.modifiers():
             self._stop()
             return
@@ -157,6 +165,14 @@ class KeyButton(QtWidgets.QPushButton):
         self.captured.emit(mods, name)
 
     def keyReleaseEvent(self, e):
+        supers = {_v(K.Key_Super_L), _v(K.Key_Super_R), _v(K.Key_Meta)}
+        if self.listening and _v(e.key()) in supers and getattr(self, "_mods_down", set()) <= supers:
+            # nur Super gedrückt und wieder losgelassen → Super allein
+            key = "SUPER_R" if _v(e.key()) == _v(K.Key_Super_R) else "SUPER_L"
+            self.releaseKeyboard()
+            self.set_combo(["SUPER"], key)
+            self.captured.emit(["SUPER"], key)
+            return
         if self.listening and _v(e.key()) in {_v(k) for k in MOD_KEYS}:
             self._live(e.modifiers())
             return
