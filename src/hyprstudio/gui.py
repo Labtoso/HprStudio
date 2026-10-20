@@ -214,7 +214,8 @@ class MainWindow(QtWidgets.QWidget):
         self.hypr_page.sync_external()
         for pg in self.all_pages():
             pg.update_info()
-        self.other_page.refresh_packages()
+        if self.cfg.get("tab") == "other" and self.cfg.get("other_section") == "install":
+            self.other_page.refresh_packages()  # Paketliste nur, wenn sie zu sehen ist
         if self.cfg.get("other_section") == "look":
             self.other_page.refresh_look()
         if self.cfg.get("other_section") == "polkit":

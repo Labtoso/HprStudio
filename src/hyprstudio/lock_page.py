@@ -21,12 +21,25 @@ def _qcolor(c: str) -> QtGui.QColor:
 _cache: dict = {}
 
 
+_decoded_cache: dict = {}
+
+
+def _decoded(path: str, w: int, h: int) -> QtGui.QImage:
+    """Bild nur einmal je Größe von der Platte lesen (alle Presets nutzen dasselbe Hintergrundbild)."""
+    key = (path, w, h)
+    if key not in _decoded_cache:
+        if len(_decoded_cache) > 8:
+            _decoded_cache.clear()
+        _decoded_cache[key] = _load(path, w, h) if path else QtGui.QImage()
+    return _decoded_cache[key]
+
+
 def _background(path: str, w: int, h: int, blur: int) -> QtGui.QImage:
     """Bild füllend zuschneiden und grob weichzeichnen (kleiner rechnen und wieder hochziehen)."""
     key = (path, w, h, blur)
     if key in _cache:
         return _cache[key]
-    img = _load(path, w, h) if path else QtGui.QImage()
+    img = _decoded(path, w, h)
     if img.isNull():
         return img
     scale = max(w / img.width(), h / img.height())
@@ -314,6 +327,10 @@ class LockEditor(QtWidgets.QWidget):
         """Beim Öffnen: Kürzel-Stand übernehmen, Preset-Bilder mit aktuellem Hintergrundbild zeichnen."""
         self.refresh_controls()
         wp = self.wallpaper()
+        sig = (wp, self.state["font"])  # Preset-Bilder hängen nur vom Hintergrund und der Schrift ab
+        if getattr(self, "_thumb_sig", None) == sig:
+            return
+        self._thumb_sig = sig
         for name, pc in self.presets.items():
             pc.set_pixmap(render_lock(hyprlock.preset_state(name, self.state), 196, 110, wp, 10))
 

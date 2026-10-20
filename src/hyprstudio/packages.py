@@ -48,6 +48,26 @@ def manager() -> str | None:
     return None
 
 
+_FONTS = {"t": 0.0, "out": ""}  # fc-list ist bei vielen Schriften langsam → kurz zwischenspeichern
+
+
+def font_list() -> str:
+    import time
+    if time.monotonic() - _FONTS["t"] > 60:
+        try:
+            _FONTS["out"] = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True,
+                                           timeout=8).stdout.lower()
+        except (OSError, subprocess.TimeoutExpired):
+            _FONTS["out"] = ""
+        _FONTS["t"] = time.monotonic()
+    return _FONTS["out"]
+
+
+def forget() -> None:
+    """Nach Installieren/Entfernen: Zwischenspeicher verwerfen."""
+    _FONTS["t"] = 0.0
+
+
 def installed(key: str) -> bool:
     if key not in PACKAGES:  # z. B. L Launcher: gehört zu Hypr Studio
         return True
@@ -57,11 +77,7 @@ def installed(key: str) -> bool:
     if check.startswith("file:"):  # z. B. Qt-Plugin ohne eigenen Befehl
         return any(glob.glob(g) for g in check[5:].split("|"))
     if check.startswith("font:"):
-        try:
-            out = subprocess.run(["fc-list"], capture_output=True, text=True, timeout=8).stdout
-        except (OSError, subprocess.TimeoutExpired):
-            return False
-        return check[5:].lower() in out.lower()
+        return check[5:].lower() in font_list()
     return shutil.which(check) is not None
 
 

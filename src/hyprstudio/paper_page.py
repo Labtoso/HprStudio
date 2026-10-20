@@ -53,6 +53,20 @@ def _thumb(path: str, w: int, h: int, radius: int = 12) -> QtGui.QPixmap:
     return pm
 
 
+_thumbs: dict = {}
+
+
+def _thumb_cached(path: str) -> QtGui.QPixmap:
+    """Vorschaubild der Bibliothek merken (nach Pfad und Änderungszeit) – Wiederöffnen ohne neu zu laden."""
+    try:
+        key = (path, os.path.getmtime(path))
+    except OSError:
+        key = (path, 0)
+    if key not in _thumbs:
+        _thumbs[key] = _thumb(path, 172, 95, 10)
+    return _thumbs[key]
+
+
 def _pick(parent, folder: bool, start: str) -> str:
     start = os.path.expanduser(start) if start else str(online.wall_dir() if online.wall_dir().is_dir() else Path.home())
     if folder:
@@ -424,13 +438,17 @@ class PaperEditor(QtWidgets.QWidget):
 
     # ----- Bibliothek -----
     def load_library(self):
+        files = online.library_images(60)
+        if files == getattr(self, "_lib_files", None):  # nichts Neues → Vorschaubilder behalten
+            self._mark()
+            return
+        self._lib_files = files
         self._timer.stop()
         for w in self.grid.items:
             w.hide()
             w.setParent(None)
             w.deleteLater()
         self.grid.items, self.thumbs = [], []
-        files = online.library_images(60)
         for f in files:
             th = Thumb(f)
             th.clicked.connect(self._lib_pick)
@@ -448,7 +466,7 @@ class PaperEditor(QtWidgets.QWidget):
                 self._timer.stop()
                 return
             th = self._todo.pop(0)
-            th.setPixmap(_thumb(th.path, 172, 95, 10))
+            th.setPixmap(_thumb_cached(th.path))
 
     def _mark(self):
         acc = self.win.accent()

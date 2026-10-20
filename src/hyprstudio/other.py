@@ -714,6 +714,7 @@ class OtherPage(QtWidgets.QWidget):
                 self.win.log(x)
 
     def _installed(self, code: int, cmd: list, keys: list = (), remove: bool = False):
+        packages.forget()
         self.proc.deleteLater()
         self.proc = None
         self.win.bar_busy(False)
@@ -744,6 +745,7 @@ class OtherPage(QtWidgets.QWidget):
         self._watch_timer.start()
 
     def _watch_tick(self):
+        packages.forget()
         self._watch_left -= 1
         done = all(packages.installed(k) != self._watch_remove for k in self._watch_keys)
         if done or self._watch_left <= 0:
