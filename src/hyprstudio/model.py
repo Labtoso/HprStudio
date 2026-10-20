@@ -1029,12 +1029,10 @@ hl.window_rule({
 
 def hypr_lua(s: dict) -> str:
     b = _num
-    lines = [f"-- {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben", "hl.config({"]
+    # ein hl.config pro Bereich (wie im offiziellen Beispiel): lehnt Hyprland eine Option ab, fällt nur ihr Bereich weg
+    lines = [f"-- {MARK} – automatisch erzeugt, wird beim Anwenden überschrieben"]
     for name, d in _sections(s, True).items():
-        lines.append(f"    {name} = {{")
-        lines += _lua_table(d, 2)
-        lines.append("    },")
-    lines.append("})")
+        lines += ["hl.config({", f"    {name} = {{"] + _lua_table(d, 2) + ["    },", "})"]
     if s["anim"]:
         (x0, y0), (x1, y1) = CURVES[s["anim_curve"]]
         lines += ["", f'hl.curve("hs_curve", {{ type = "bezier", points = {{ {{{b(x0)}, {b(y0)}}}, '
