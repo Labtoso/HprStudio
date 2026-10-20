@@ -29,6 +29,7 @@ PACKAGES = {
 }
 GROUPS = ("launcher", "bar", "tools")
 DRY_INSTALLED: set = set()
+DRY_REMOVED: set = set()
 
 
 def manager() -> str | None:
@@ -43,7 +44,7 @@ def manager() -> str | None:
 def installed(key: str) -> bool:
     check = PACKAGES[key][1]
     if model.DRY:  # Testmodus: etwas gemischt anzeigen, „Installiertes“ merken
-        return key in ("waybar", "rofi") or key in DRY_INSTALLED
+        return (key in ("waybar", "rofi") or key in DRY_INSTALLED) and key not in DRY_REMOVED
     if check.startswith("font:"):
         try:
             out = subprocess.run(["fc-list"], capture_output=True, text=True, timeout=8).stdout
@@ -57,11 +58,44 @@ def available(key: str, pm: str | None) -> bool:
     return bool(pm and PACKAGES[key][2].get(pm))
 
 
-def command(keys: list, pm: str) -> list:
-    """Befehl für pkexec (läuft als root, ohne Rückfrage im Terminal)."""
+def pkg_names(keys: list, pm: str) -> list:
     pkgs = []
     for k in keys:
         pkgs += [p for p in PACKAGES[k][2].get(pm, []) if p not in pkgs]
+    return pkgs
+
+
+def _present(pkgs: list, pm: str) -> list:
+    """Nur Pakete, die wirklich installiert sind (sonst bricht das Entfernen ab)."""
+    if model.DRY:
+        return pkgs
+    q = {"pacman": ["pacman", "-Q"], "apt": ["dpkg", "-s"], "dnf": ["rpm", "-q"], "zypper": ["rpm", "-q"]}[pm]
+    out = []
+    for p in pkgs:
+        try:
+            if subprocess.run(q + [p], capture_output=True, timeout=8).returncode == 0:
+                out.append(p)
+        except (OSError, subprocess.TimeoutExpired):
+            out.append(p)
+    return out
+
+
+def remove_command(keys: list, pm: str) -> list:
+    """Entfernen per pkexec; pacman -Rs nimmt nicht mehr gebrauchte Abhängigkeiten mit."""
+    pkgs = _present(pkg_names(keys, pm), pm)
+    if not pkgs:
+        return []
+    return {
+        "pacman": ["pacman", "-Rs", "--noconfirm", *pkgs],
+        "apt": ["apt-get", "remove", "-y", *pkgs],
+        "dnf": ["dnf", "remove", "-y", *pkgs],
+        "zypper": ["zypper", "-n", "rm", *pkgs],
+    }[pm]
+
+
+def command(keys: list, pm: str) -> list:
+    """Befehl für pkexec (läuft als root, ohne Rückfrage im Terminal)."""
+    pkgs = pkg_names(keys, pm)
     if not pkgs:
         return []
     return {

@@ -16,6 +16,24 @@ DANGER = "#e5534b"
 OK = "#3fb950"
 
 
+def palette(accent: str):
+    from .qt import QtGui
+    P = QtGui.QPalette
+    pal = QtGui.QPalette()
+    c = QtGui.QColor
+    for role, col in ((P.ColorRole.Window, SURFACE), (P.ColorRole.WindowText, TEXT), (P.ColorRole.Base, BG),
+                      (P.ColorRole.AlternateBase, SURFACE2), (P.ColorRole.Text, TEXT), (P.ColorRole.Button, SURFACE2),
+                      (P.ColorRole.ButtonText, TEXT), (P.ColorRole.ToolTipBase, SURFACE2),
+                      (P.ColorRole.ToolTipText, TEXT), (P.ColorRole.Highlight, accent),
+                      (P.ColorRole.HighlightedText, "#ffffff"), (P.ColorRole.PlaceholderText, MUTED),
+                      (P.ColorRole.Link, accent), (P.ColorRole.Mid, BORDER), (P.ColorRole.Dark, BG),
+                      (P.ColorRole.Light, SURFACE2), (P.ColorRole.Midlight, SURFACE2), (P.ColorRole.Shadow, "#000000")):
+        pal.setColor(role, c(col))
+    for role in (P.ColorRole.WindowText, P.ColorRole.Text, P.ColorRole.ButtonText):
+        pal.setColor(P.ColorGroup.Disabled, role, c(MUTED))
+    return pal
+
+
 def qss(accent: str) -> str:
     return f"""
     QWidget {{ color: {TEXT}; font-size: 10pt; }}
@@ -33,6 +51,7 @@ def qss(accent: str) -> str:
     #RowLabel {{ color: {MUTED}; }}
     #Value {{ color: {TEXT}; font-family: "Hack", "JetBrains Mono", "DejaVu Sans Mono", monospace; }}
     #PageTitle {{ font-size: 16pt; font-weight: 700; }}
+    QSlider:horizontal {{ min-height: 24px; background: transparent; }}
     QSlider::groove:horizontal {{ height: 6px; background: {SURFACE2}; border-radius: 3px; }}
     QSlider::sub-page:horizontal {{ background: {accent}; border-radius: 3px; }}
     QSlider::handle:horizontal {{ background: {TEXT}; width: 16px; height: 16px; margin: -5px 0; border-radius: 8px; }}
@@ -51,6 +70,15 @@ def qss(accent: str) -> str:
     QMenu::separator {{ height: 1px; background: {BORDER}; margin: 5px 8px; }}
     QMenu::section {{ color: {MUTED}; padding: 6px 14px 2px 14px; font-weight: 600; }}
     QMenu::indicator {{ width: 14px; height: 14px; margin-left: 6px; }}
+    QFileDialog QTreeView, QFileDialog QListView, QColorDialog QListView {{ background: {BG};
+        border: 1px solid {BORDER}; border-radius: 10px; outline: none; }}
+    QFileDialog QTreeView::item, QFileDialog QListView::item {{ padding: 3px; }}
+    QFileDialog QTreeView::item:selected, QFileDialog QListView::item:selected {{ background: {accent}; color: #ffffff; }}
+    QHeaderView::section {{ background: {SURFACE2}; color: {MUTED}; border: none; border-right: 1px solid {BORDER};
+        padding: 6px 8px; }}
+    QFileDialog QToolButton {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px; padding: 4px; }}
+    QFileDialog QToolButton:hover {{ border-color: {accent}; }}
+    QFileDialog QSplitter::handle {{ background: transparent; }}
     #PopupCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
     QListWidget#PopList {{ background: transparent; border: none; outline: none; }}
     QListWidget#PopList::item {{ border-radius: 8px; padding: 5px 8px; }}

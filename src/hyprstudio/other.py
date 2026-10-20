@@ -5,7 +5,7 @@ from pathlib import Path
 
 import shutil
 
-from . import appearance, fixer, model, packages, theme
+from . import appearance, dialogs, fixer, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
@@ -169,12 +169,17 @@ class OtherPage(QtWidgets.QWidget):
         self.btn_inst.clicked.connect(self.install_selected)
         self.pm_label = QtWidgets.QLabel()
         self.pm_label.setObjectName("RowLabel")
+        self.btn_rm = QtWidgets.QPushButton()
+        self.btn_rm.setObjectName("DangerFill")
+        self.btn_rm.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_rm.clicked.connect(self.remove_selected)
         itop.addWidget(self.btn_inst)
+        itop.addWidget(self.btn_rm)
         itop.addSpacing(10)
         itop.addWidget(self.pm_label)
         itop.addStretch()
         il.addLayout(itop)
-        self.pkg_rows = {}
+        self.pkg_rows, self.pkg_acts = {}, {}
         for g in packages.GROUPS:
             head = QtWidgets.QLabel()
             head.setObjectName("CardTitle")
@@ -194,11 +199,17 @@ class OtherPage(QtWidgets.QWidget):
                 desc = QtWidgets.QLabel()
                 desc.setObjectName("RowLabel")
                 chip = QtWidgets.QLabel()
+                act = QtWidgets.QPushButton()
+                act.setCursor(Qt.CursorShape.PointingHandCursor)
+                act.setMinimumWidth(120)
+                act.clicked.connect(lambda _=False, k=key: self._row_action(k))
                 rl.addWidget(cb)
                 rl.addWidget(desc, 1)
                 rl.addWidget(chip)
+                rl.addWidget(act)
                 il.addWidget(row)
                 self.pkg_rows[key] = (cb, desc, chip)
+                self.pkg_acts[key] = act
         il.addStretch()
         self.proc = None
 
@@ -223,6 +234,10 @@ class OtherPage(QtWidgets.QWidget):
             sw.toggled.connect(lambda on, k=key: self.set_scroll(k, on))
             self.scroll_card._add("scroll." + key, sw, None, "tip.scroll", None, label_key="scroll." + key)
             self.scroll_sw[key] = sw
+        # Mausbeschleunigung: aus = accel_profile flat, an = Standard (adaptiv)
+        self.accel_sw = Switch()
+        self.accel_sw.toggled.connect(self.set_accel)
+        self.scroll_card._add("scroll.accel", self.accel_sw, None, "tip.accel", None, label_key="scroll.accel")
         # Regler schreiben in den Hyprland-Zustand (Card ruft self.state / self.set)
         self._apply_later = QtCore.QTimer(self)
         self._apply_later.setSingleShot(True)
@@ -323,6 +338,19 @@ class OtherPage(QtWidgets.QWidget):
         for k, sw in self.scroll_sw.items():
             sw.set_now(bool(hs[k]))
             sw.accent = self.win.accent()
+        self.accel_sw.set_now(hs["accel"] != "flat")
+        self.accel_sw.accent = self.win.accent()
+
+    def set_accel(self, on: bool):
+        hp = self.win.hypr_page
+        want = "default" if on else "flat"
+        if hp.state["accel"] == want or (on and hp.state["accel"] != "flat"):
+            return
+        hp.state["accel"] = want
+        hp.refresh_controls()
+        hp.changed()
+        self.win.log("")
+        hp.apply()
 
     def set_scroll(self, key: str, on: bool):
         hp = self.win.hypr_page
@@ -392,32 +420,70 @@ class OtherPage(QtWidgets.QWidget):
             avail = packages.available(key, pm)
             cb.setText(t("pkg." + key))
             desc.setText(t("pkgd." + key) + "  ·  " + " ".join(packages.PACKAGES[key][2].get(pm or "pacman", [])))
-            cb.setEnabled(avail and not inst and self.proc is None)
-            if inst or not avail:
+            cb.setEnabled(avail and self.proc is None)
+            if not avail:
                 cb.setChecked(False)
+            act = self.pkg_acts[key]
+            act.setText(t("pkg.remove_one") if inst else t("pkg.install_one"))
+            act.setObjectName("DangerFill" if inst else "Primary")
+            act.style().unpolish(act)
+            act.style().polish(act)
+            act.setEnabled(avail and self.proc is None)
             set_chip(chip, inst, t("pkg.installed") if inst else t("pkg.missing") if avail else t("pkg.unavailable"))
         self._inst_count()
 
     def _inst_count(self, *_):
-        n = len(self._selected())
+        sel = self._selected()
+        n = len([k for k in sel if not packages.installed(k)])
+        r = len([k for k in sel if packages.installed(k)])
         self.btn_inst.setText(t("pkg.install", n=n) if n else t("pkg.install0"))
         self.btn_inst.setEnabled(n > 0 and self.proc is None)
+        self.btn_rm.setText(t("pkg.remove", n=r) if r else t("pkg.remove0"))
+        self.btn_rm.setEnabled(r > 0 and self.proc is None)
 
     def _selected(self) -> list:
         return [k for k in packages.PACKAGES if self.pkg_rows[k][0].isChecked()]
 
     def install_selected(self):
-        self.install_keys(self._selected())
+        self.install_keys([k for k in self._selected() if not packages.installed(k)])
 
-    def install_keys(self, keys: list):
+    def remove_selected(self):
+        self.remove_keys([k for k in self._selected() if packages.installed(k)])
+
+    def _row_action(self, key: str):
+        if packages.installed(key):
+            self.remove_keys([key])
+        else:
+            self.install_keys([key])
+
+    def remove_keys(self, keys: list):
         pm = packages.manager()
-        cmd = packages.command(keys, pm) if pm else []
+        if not keys or not pm:
+            return
+        names = ", ".join(t("pkg." + k) for k in keys)
+        pkgs = " ".join(packages.pkg_names(keys, pm))
+        if not dialogs.confirm(self, t("pkg.remove_title"), t("pkg.remove_q", names=names, pkgs=pkgs),
+                               t("pkg.remove_one"), danger=True):
+            return
+        self.install_keys(keys, remove=True)
+
+    def install_keys(self, keys: list, remove: bool = False):
+        pm = packages.manager()
+        cmd = (packages.remove_command(keys, pm) if remove else packages.command(keys, pm)) if pm else []
         if not cmd:
             return
         self.win.log("")
+        for k in keys:
+            self.pkg_rows[k][0].setChecked(False)
         if model.DRY:
             self.win.log("$ pkexec " + " ".join(cmd) + "  (Testmodus)")
-            packages.DRY_INSTALLED.update(keys)
+            if remove:
+                packages.DRY_REMOVED.update(keys)
+                packages.DRY_INSTALLED.difference_update(keys)
+            else:
+                packages.DRY_INSTALLED.update(keys)
+                packages.DRY_REMOVED.difference_update(keys)
+            self.refresh_packages()
             self.win.set_status(t("pkg.done"))
             self.win.refresh_gates()
             if not self.win.logview.isVisible():
@@ -497,11 +563,8 @@ class OtherPage(QtWidgets.QWidget):
             self.bak_lay.addWidget(row)
 
     def restore(self, bak: Path, orig: Path):
-        box = QtWidgets.QMessageBox(self)
-        box.setWindowTitle(t("bak.restore"))
-        box.setText(t("bak.confirm", src=bak.name, target=orig.name))
-        box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
-        if box.exec() != QtWidgets.QMessageBox.StandardButton.Yes:
+        if not dialogs.confirm(self, t("bak.restore"), t("bak.confirm", src=bak.name, target=orig.name),
+                               t("bak.restore")):
             return
         self.win.log("")
         fixer.restore(bak, orig, self.win.log)

@@ -16,11 +16,31 @@ from .widgets import ResetDialog, RoundPopups, Segmented, SettingsPanel, app_ico
 TABS = ("hypr", "waybar", "launcher", "other")
 
 
+_QT_TR = None
+
+
+def _qt_lang(code: str) -> None:
+    """Qt-eigene Texte (Dateibrowser, Farbwahl) in der App-Sprache; fehlt die Übersetzung, bleibt Englisch."""
+    global _QT_TR
+    app = QtWidgets.QApplication.instance()
+    if _QT_TR is not None:
+        app.removeTranslator(_QT_TR)
+        _QT_TR = None
+    if code == "en":
+        return
+    tr = QtCore.QTranslator(app)
+    path = QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.LibraryPath.TranslationsPath)
+    if tr.load(f"qtbase_{code}", path):
+        app.installTranslator(tr)
+        _QT_TR = tr
+
+
 class MainWindow(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.cfg = load_cfg()
         set_lang(self.cfg.get("lang", "en"))
+        _qt_lang(self.cfg.get("lang", "en"))
         model.FORMAT = self.cfg.get("hypr_format", "") if self.cfg.get("hypr_format") in ("lua", "conf") else ""
         if self.cfg.get("theme") not in theme.THEMES:
             self.cfg["theme"] = "blue"
@@ -318,6 +338,7 @@ class MainWindow(QtWidgets.QWidget):
     def set_language(self, code: str):
         self.cfg["lang"] = code
         set_lang(code)
+        _qt_lang(code)
         self.save_later()
         self.retranslate()
         self.panel.sync(self.cfg, self._info())
@@ -348,6 +369,7 @@ class MainWindow(QtWidgets.QWidget):
         self.panel.sync(self.cfg, self._info())
 
     def apply_theme(self):
+        QtWidgets.QApplication.instance().setPalette(theme.palette(self.accent()))
         self.setStyleSheet(theme.qss(self.accent()))
         self.gear.setIcon(draw_icon("gear", theme.TEXT, 22))
         self.btn_min.setIcon(draw_icon("min", theme.MUTED, 18))

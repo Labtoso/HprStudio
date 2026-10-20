@@ -4,7 +4,7 @@ Beide haben eine Bibliothek bzw. Suche und können Neues aus dem Netz installier
 import os
 from pathlib import Path
 
-from . import model, online, paper
+from . import dialogs, model, online, paper
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt, Signal
 from .widgets import Card, FlowGrid, Segmented, Switch, set_chip
@@ -56,10 +56,8 @@ def _thumb(path: str, w: int, h: int, radius: int = 12) -> QtGui.QPixmap:
 def _pick(parent, folder: bool, start: str) -> str:
     start = os.path.expanduser(start) if start else str(online.wall_dir() if online.wall_dir().is_dir() else Path.home())
     if folder:
-        return QtWidgets.QFileDialog.getExistingDirectory(parent, t("paper.folder"), start)
-    path, _ = QtWidgets.QFileDialog.getOpenFileName(parent, t("paper.image"), start,
-                                                    "Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp)")
-    return path
+        return dialogs.open_dir(parent, t("paper.folder"), start)
+    return dialogs.open_file(parent, t("paper.image"), start, "Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp)")
 
 
 def _short(path: str) -> str:

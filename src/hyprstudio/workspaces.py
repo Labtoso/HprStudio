@@ -5,6 +5,7 @@ import shutil
 import subprocess
 
 from . import model, theme
+from . import dialogs
 from .i18n import t
 from .qt import QtGui, QtWidgets, Qt, Signal
 from .widgets import draw_icon
@@ -122,7 +123,7 @@ class WsRow(QtWidgets.QFrame):
         self._emit()
 
     def _on_empty(self):
-        txt, ok = QtWidgets.QInputDialog.getText(self, t("ws.on_empty"), t("tip.ws.on_empty"), text=self.w["on_empty"])
+        txt, ok = dialogs.ask_text(self, t("ws.on_empty"), t("tip.ws.on_empty"), self.w["on_empty"])
         if ok:
             self.w["on_empty"] = txt.strip()
             self._emit()

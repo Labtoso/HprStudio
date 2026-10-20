@@ -4,6 +4,7 @@ exportieren/importieren. Gespeichert in der App-Config (cfg["user_presets"][bere
 import json
 from pathlib import Path
 
+from . import dialogs
 from .i18n import t
 from .qt import QtWidgets, Qt
 from .widgets import FlowGrid, PresetCard
@@ -67,15 +68,11 @@ class UserPresetsMixin:
         return self.sanitize(store(self.win.cfg, self.KIND).get(key[len(PREFIX):], {}))
 
     def _ask_name(self, title: str, text: str = "") -> str:
-        name, ok = QtWidgets.QInputDialog.getText(self, title, t("up.name"), text=text)
+        name, ok = dialogs.ask_text(self, title, t("up.name"), text)
         return name.strip() if ok else ""
 
     def _confirm(self, text: str) -> bool:
-        box = QtWidgets.QMessageBox(self)
-        box.setWindowTitle(t("up.title"))
-        box.setText(text)
-        box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
-        return box.exec() == QtWidgets.QMessageBox.StandardButton.Yes
+        return dialogs.confirm(self, t("up.title"), text)
 
     def save_user_preset(self):
         name = self._ask_name(t("up.save"))
@@ -123,8 +120,8 @@ class UserPresetsMixin:
         self.reload_user_presets()
 
     def export_user_preset(self, name: str):
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, t("up.export"), str(Path.home() / f"{name}.hyprstudio.json"),
-                                                        "Hypr Studio (*.json)")
+        path = dialogs.save_file(self, t("up.export"), str(Path.home() / f"{name}.hyprstudio.json"),
+                                 "Hypr Studio (*.json)")
         if not path:
             return
         payload = {"hyprstudio": self.KIND, "name": name, "state": store(self.win.cfg, self.KIND)[name]}
@@ -132,7 +129,7 @@ class UserPresetsMixin:
         self.win.set_status(t("up.exported", path=path))
 
     def import_user_preset(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, t("up.import"), str(Path.home()), "Hypr Studio (*.json)")
+        path = dialogs.open_file(self, t("up.import"), str(Path.home()), "Hypr Studio (*.json)")
         if not path:
             return
         try:

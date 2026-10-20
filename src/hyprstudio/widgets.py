@@ -218,12 +218,10 @@ class ColorButton(QtWidgets.QPushButton):
     def pick(self):
         from .preview import qcolor
         old = self.color
-        dlg = QtWidgets.QColorDialog(qcolor(old), self.window())
-        dlg.setOption(QtWidgets.QColorDialog.ColorDialogOption.ShowAlphaChannel, True)
-        dlg.setOption(QtWidgets.QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
-        dlg.currentColorChanged.connect(lambda c: self._live(c))
-        if dlg.exec():
-            self._live(dlg.currentColor())
+        from . import dialogs
+        c = dialogs.pick_color(self, qcolor(old), t("color.pick"), live=self._live)
+        if c is not None:
+            self._live(c)
         else:
             self.set_color(old)
             self.color_changed.emit(old)

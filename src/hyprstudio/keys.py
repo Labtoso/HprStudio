@@ -3,6 +3,7 @@
 import sys
 
 from . import model, theme
+from . import dialogs
 from .i18n import TEXT, t
 from .qt import QtCore, QtGui, QtWidgets, Qt, Signal
 from .widgets import SearchCombo, draw_icon
@@ -127,8 +128,8 @@ class KeyButton(QtWidgets.QPushButton):
         if a is None:
             return
         if a is manual:
-            txt, ok = QtWidgets.QInputDialog.getText(self, t("keys.manual"), t("keys.manual_q"),
-                                                     text=model.combo_text({"mods": self.mods, "key": self.key}))
+            txt, ok = dialogs.ask_text(self, t("keys.manual"), t("keys.manual_q"),
+                                       model.combo_text({"mods": self.mods, "key": self.key}))
             mods, key = parse_combo(txt) if ok else ([], "")
             if key:
                 self.set_combo(mods, key)
@@ -455,7 +456,7 @@ class BindEditor(QtWidgets.QWidget):
                 rm.addAction(name).triggered.connect(lambda _=False, n=name: self._remove_set(n))
 
     def _save_set(self):
-        name, ok = QtWidgets.QInputDialog.getText(self, t("up.save_binds"), t("up.name"))
+        name, ok = dialogs.ask_text(self, t("up.save_binds"), t("up.name"))
         if ok and name.strip():
             self.user_store()[name.strip()] = model.clean_binds(self.read())
             self.saved.emit()
@@ -465,9 +466,6 @@ class BindEditor(QtWidgets.QWidget):
         self.changed.emit()
 
     def _remove_set(self, name: str):
-        box = QtWidgets.QMessageBox(self)
-        box.setText(t("up.remove_q", name=name))
-        box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
-        if box.exec() == QtWidgets.QMessageBox.StandardButton.Yes:
+        if dialogs.confirm(self, t("up.remove_set"), t("up.remove_q", name=name), t("up.remove"), danger=True):
             self.user_store().pop(name, None)
             self.saved.emit()
