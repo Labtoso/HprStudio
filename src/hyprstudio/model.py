@@ -1032,10 +1032,10 @@ def is_laptop_bind(b: dict) -> bool:
 
 
 def all_binds(s: dict) -> list:
-    """Eigene Kürzel + Laptop-Tasten (Schalter an: gleiche Tasten aus der Liste fallen weg, nichts doppelt)."""
+    """Eigene Kürzel; Laptop-Tasten stehen in hyprstudio_laptop.* (laptopkeys.py) – gleiche Tasten fallen hier weg."""
     if not s.get("laptop_keys"):
         return s["binds"]
-    return [b for b in s["binds"] if not is_laptop_bind(b)] + laptop_binds(s)
+    return [b for b in s["binds"] if not is_laptop_bind(b)]
 
 
 def foreign_key_lines(text: str, fmt: str) -> list:
@@ -1201,8 +1201,8 @@ INCLUDE = {
 
 
 def _has_include(text: str, fmt: str) -> bool:
-    c = INCLUDE[fmt][1]
-    return any("hyprstudio" in ln and not ln.strip().startswith(c) for ln in text.splitlines())
+    """Genau die Einbindung von hyprstudio.* (die der Laptop-Tasten zählt nicht)."""
+    return INCLUDE[fmt][0] in (ln.strip() for ln in text.splitlines())
 
 
 def stamp(f: Path) -> Path:

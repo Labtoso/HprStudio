@@ -5,7 +5,7 @@ from pathlib import Path
 
 import shutil
 
-from . import appearance, dialogs, fixer, hardware, model, packages, theme
+from . import appearance, dialogs, fixer, hardware, laptopkeys, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
@@ -473,12 +473,8 @@ class OtherPage(QtWidgets.QWidget):
         self.lt_install.setEnabled(packages.available("media", packages.manager()))
         for b, key in self.lt_tests:
             b.setText(t("laptop." + key))
-        if hp.state["vol_tool"] != hardware.volume_tool():
-            hp.state["vol_tool"] = hardware.volume_tool()
+        if laptopkeys.auto(hp.state, self.win.log):  # auf Laptops schon beim Start an (gui._auto_laptop)
             hp.changed()
-        # noch nie selbst geschaltet: auf Laptops automatisch an
-        if not hp.state["laptop_managed"] and dev["laptop"]:
-            self.set_laptop(True)
         self.lt_sw.set_now(hp.state["laptop_keys"])
 
     def set_laptop(self, on: bool):
@@ -494,8 +490,9 @@ class OtherPage(QtWidgets.QWidget):
         hp.changed()
         self.win.log("")
         self.win.log(t("laptop.on") if on else t("laptop.off"))
-        if not self._apply_hypr_if_managed():
-            self.win.log(t("polkit.later"))
+        if laptopkeys.write(model.config_home() / "hypr", hp.state, self.win.log):
+            model.run(["hyprctl", "reload"], self.win.log, quiet=True)
+        self._apply_hypr_if_managed()  # eigene Kürzel ohne die Laptop-Tasten neu schreiben
 
     def test_key(self, which: str):
         up, down, mute, _ = model.VOLUME_CMDS[hardware.volume_tool()]

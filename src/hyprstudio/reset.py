@@ -245,7 +245,9 @@ def remove_include(hdir: Path, log) -> int:
         text = f.read_text(encoding="utf-8", errors="replace")
         keep = [ln for ln in text.splitlines(keepends=True)
                 if not (ln.strip() in (f"-- {model.MARK}", f"# {model.MARK}", 'require("hyprstudio")',
-                                       "source = ~/.config/hypr/hyprstudio.conf"))]
+                                       "source = ~/.config/hypr/hyprstudio.conf", 'require("hyprstudio_laptop")',
+                                       "source = ~/.config/hypr/hyprstudio_laptop.conf",
+                                       f"-- {model.MARK} – Laptop-Tasten", f"# {model.MARK} – Laptop-Tasten"))]
         if len(keep) != len(text.splitlines(keepends=True)):
             _backup(f, log)
             f.write_text("".join(keep), encoding="utf-8")

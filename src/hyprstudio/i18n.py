@@ -346,6 +346,9 @@ TEXT["en"].update({'sec.polkit': 'Polkit agent', 'polkit.title': 'Polkit agent (
 TEXT["de"].update({'sec.laptop': 'Laptop-Tasten', 'laptop.title': 'Helligkeit, Lautstärke & Stumm', 'laptop.is_laptop': 'Laptop', 'laptop.desktop': 'kein Laptop erkannt', 'laptop.keys': 'Tasten aktivieren', 'tip.laptop.keys': 'Helligkeit, Lautstärke, Stumm, Mikrofon und Medien-Tasten – wie im offiziellen Hyprland-Beispiel, auch auf dem Sperrbildschirm', 'laptop.test': 'Ausprobieren', 'laptop.bright_down': '☀ −', 'laptop.bright_up': '☀ +', 'laptop.vol_down': '🔉 −', 'laptop.vol_up': '🔊 +', 'laptop.mute': '🔇', 'laptop.on': 'Laptop-Tasten aktiviert', 'laptop.off': 'Laptop-Tasten deaktiviert', 'laptop.test_ok': 'Befehl ausgeführt', 'laptop.test_fail': 'Befehl fehlgeschlagen – Details im Protokoll'})
 TEXT["en"].update({'sec.laptop': 'Laptop keys', 'laptop.title': 'Brightness, volume & mute', 'laptop.is_laptop': 'Laptop', 'laptop.desktop': 'no laptop detected', 'laptop.keys': 'Enable keys', 'tip.laptop.keys': 'Brightness, volume, mute, microphone and media keys – like the official Hyprland example, also on the lock screen', 'laptop.test': 'Try it', 'laptop.bright_down': '☀ −', 'laptop.bright_up': '☀ +', 'laptop.vol_down': '🔉 −', 'laptop.vol_up': '🔊 +', 'laptop.mute': '🔇', 'laptop.on': 'Laptop keys enabled', 'laptop.off': 'Laptop keys disabled', 'laptop.test_ok': 'Command ran', 'laptop.test_fail': 'Command failed – details in the log'})
 
+TEXT["de"].update({'laptop.auto': 'Laptop erkannt ({name}): Helligkeit, Lautstärke und Stumm funktionieren jetzt'})
+TEXT["en"].update({'laptop.auto': 'Laptop detected ({name}): brightness, volume and mute keys work now'})
+
 _lang = "en"
 
 
