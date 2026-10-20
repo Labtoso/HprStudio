@@ -254,6 +254,26 @@ MOUSE_ACTIONS = ("drag", "resize")
 LAUNCHER_CMDS = {"llauncher": "l-launcher", "rofi": "rofi -show drun", "wofi": "wofi --show drun", "fuzzel": "fuzzel"}
 
 
+LAUNCHER_TOGGLE = True  # zweites Drücken der Launcher-Taste schließt ihn (Launcher-Tab › Verhalten)
+
+
+def launcher_exec(key: str) -> str:
+    """Befehl fürs Kürzel; mit Umschalten: läuft der Launcher schon, wird er geschlossen.
+    Der L Launcher schaltet selbst um (merkt sich seine Prozess-ID)."""
+    cmd = LAUNCHER_CMDS.get(key, "")
+    if LAUNCHER_TOGGLE and cmd and key != "llauncher":
+        return f"pkill -x {cmd.split()[0]} || {cmd}"
+    return cmd
+
+
+def _strip_toggle(cmd: str) -> str:
+    """„pkill -x rofi || rofi -show drun“ → „rofi -show drun“."""
+    c = (cmd or "").strip()
+    if c.startswith("pkill -x ") and "||" in c:
+        return c.split("||", 1)[1].strip()
+    return c
+
+
 def bind_cmd(b: dict) -> str:
     """Befehl, den ein Kürzel startet („Launcher öffnen“ → Befehl des gewählten Launchers)."""
     if b.get("action") == "launcher":
@@ -265,7 +285,7 @@ def as_launcher(action: str, arg: str) -> tuple:
     """Exec eines bekannten Launchers → Aktion „Launcher öffnen“ (für Import aus der Config)."""
     if action == "exec":
         for k, c in LAUNCHER_CMDS.items():
-            if arg.strip() == c:
+            if _strip_toggle(arg) == c:
                 return "launcher", k
     return action, arg
 FLAGS = ("locked", "repeating", "release")
@@ -371,7 +391,7 @@ def bind_lua(b: dict) -> str:
     a, g = b["action"], b["arg"]
     dsp = {
         "exec": lambda: f"hl.dsp.exec_cmd({_lua_str(g)})",
-        "launcher": lambda: f"hl.dsp.exec_cmd({_lua_str(LAUNCHER_CMDS[g])})",
+        "launcher": lambda: f"hl.dsp.exec_cmd({_lua_str(launcher_exec(g))})",
         "close": lambda: "hl.dsp.window.close()",
         "kill": lambda: "hl.dsp.window.kill()",
         "fullscreen": lambda: 'hl.dsp.window.fullscreen({ action = "toggle" })',
@@ -404,7 +424,7 @@ CONF_DSP = {"close": "killactive,", "kill": "forcekillactive,", "fullscreen": "f
 
 def bind_conf(b: dict) -> list:
     a, g = b["action"], b["arg"]
-    d = CONF_DSP.get(a) or {"exec": f"exec, {g}", "launcher": f"exec, {LAUNCHER_CMDS.get(g, '')}", "focus": f"movefocus, {g[:1]}", "movewin": f"movewindow, {g[:1]}",
+    d = CONF_DSP.get(a) or {"exec": f"exec, {g}", "launcher": f"exec, {launcher_exec(g)}", "focus": f"movefocus, {g[:1]}", "movewin": f"movewindow, {g[:1]}",
                             "workspace": f"workspace, {g}", "movetows": f"movetoworkspace, {g}"}[a]
     mods = " ".join(b["mods"])
     letters = "".join(c for f, c in (("locked", "l"), ("repeating", "e"), ("release", "r")) if f in bind_flags(b))
@@ -683,6 +703,7 @@ LAUNCHERS = ("l-launcher", "rofi", "wofi", "fuzzel", "hyprlauncher", "tofi", "an
 
 
 def is_launcher_cmd(cmd: str) -> bool:
+    cmd = _strip_toggle(cmd)
     if (cmd or "").strip().startswith("hypr-studio --launcher"):
         return True
     first = (cmd or "").strip().split(" ", 1)[0]

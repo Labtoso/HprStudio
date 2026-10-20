@@ -18,7 +18,7 @@ LAUNCHER_DEFAULT = {
     # Verhalten
     "font": "JetBrainsMono Nerd Font", "font_size": 12, "icons": True, "icon_theme": "",
     "show_prompt": True, "prompt": "Apps", "placeholder": "Suchen …", "mode": "drun", "matching": "fuzzy",
-    "insensitive": True, "terminal": "kitty", "show_scroll": False, "name_search": True,
+    "insensitive": True, "terminal": "kitty", "show_scroll": False, "name_search": True, "toggle": True,
 }
 LOOK = ("bg", "fg", "accent", "sel", "sel_fg", "input_bg", "border", "border_width", "radius", "el_radius",
         "width", "lines", "columns", "padding", "spacing", "position", "offset", "grid", "icon_size")
@@ -362,8 +362,15 @@ def fuzzel_ini(s: dict) -> str:
 # ---------- Schreiben ----------
 
 def files(s: dict, cfg_home: Path, home_for_theme: Path | None = None) -> list:
-    """[(pfad, inhalt)] für den gewählten Launcher."""
-    app = s["app"]
+    """[(pfad, inhalt)] für ALLE Launcher (gewählter zuerst): Theme, Größe und Position gelten so überall,
+    auch wenn ein Kürzel einen anderen Launcher startet als den im Tab gewählten."""
+    out = []
+    for app in [s["app"]] + [a for a in APPS if a != s["app"]]:
+        out += _files_for(app, s, cfg_home)
+    return out
+
+
+def _files_for(app: str, s: dict, cfg_home: Path) -> list:
     if app == "llauncher":  # L Launcher liest seine Einstellungen beim Start aus dieser Datei
         import json
         return [(cfg_home / "LabtosoStudios" / "l-launcher.json", json.dumps(s, ensure_ascii=False, indent=1))]

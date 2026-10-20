@@ -143,12 +143,55 @@ def remember(app_id: str) -> None:
 
 # ---------- Fenster ----------
 
+def pid_file() -> Path:
+    run = os.environ.get("XDG_RUNTIME_DIR")
+    return Path(run) / "l-launcher.pid" if run else history_file().with_name("l-launcher.pid")
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+    try:  # nur echte L-Launcher-Prozesse (PID kann neu vergeben sein)
+        return b"--launcher" in Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return sys.platform == "win32"
+
+
+def toggle_running() -> bool:
+    """Läuft schon ein L Launcher? Dann schließen und True zurückgeben (zweites Drücken)."""
+    if sys.platform == "win32":  # os.kill würde unter Windows beenden statt prüfen (nur Testmodus)
+        return False
+    f = pid_file()
+    try:
+        pid = int(f.read_text().strip())
+    except (OSError, ValueError):
+        return False
+    if pid != os.getpid() and _alive(pid):
+        import signal
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            return False
+        return True
+    return False
+
+
 def main(argv) -> int:
-    from .qt import QtCore, QtGui, QtWidgets, Qt
     from . import launcher as lconf
+    s0 = lconf.state(load_json(settings_file()))
+    if s0["toggle"] and toggle_running():
+        return 0
+    try:
+        pid_file().parent.mkdir(parents=True, exist_ok=True)
+        pid_file().write_text(str(os.getpid()))
+    except OSError:
+        pass
+    from .qt import QtCore, QtGui, QtWidgets, Qt
     from .preview import qcolor
 
-    s = lconf.state(load_json(settings_file()))
+    s = s0
     QtGui.QGuiApplication.setDesktopFileName(APP_ID)
     app = QtWidgets.QApplication(argv)
     app.setApplicationName(APP_ID)
@@ -293,7 +336,18 @@ def main(argv) -> int:
     refresh()
     w.show()
     edit.setFocus()
-    return app.exec()
+    import signal
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())  # zweites Drücken → schließen
+    tick = QtCore.QTimer(w)  # Python-Signale auch während Qt läuft verarbeiten
+    tick.start(200)
+    try:
+        return app.exec()
+    finally:
+        try:
+            if pid_file().read_text().strip() == str(os.getpid()):
+                pid_file().unlink()
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

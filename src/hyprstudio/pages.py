@@ -773,6 +773,7 @@ class LauncherPage(EditorPage):
             c = self.card(lay, "card.lmode")
             c.choice("mode", ("drun", "run"), "lmode.")
             c.toggle("name_search", tip="tip.name_search")
+            c.toggle("toggle", tip="tip.ltoggle", label_key="ltoggle")
             c.choice("matching", ("fuzzy", "normal"), "match.")
             c.toggle("insensitive")
             c.text("terminal", width=200)
@@ -819,6 +820,9 @@ class LauncherPage(EditorPage):
 
     def set(self, key, value):
         super().set(key, value)
+        if key == "toggle":  # steckt in den Hyprland-Kürzeln → dort neu schreiben
+            model.LAUNCHER_TOGGLE = bool(value)
+            self.win.hypr_page.changed()
         if key == "app":
             self.update_info()
             if hasattr(self.win, "launcher_gate"):
@@ -877,6 +881,9 @@ class LauncherPage(EditorPage):
             self.win.log(t("launcher.missing", app=app))
         ok, info = launcher.apply(self.state, model.config_home(), self.win.log)
         self.win.report(ok, info)
+        hp = self.win.hypr_page
+        if ok and any(b["action"] == "launcher" for b in hp.state["binds"]):
+            hp.apply()  # Umschalten (zweites Drücken schließt) steckt im Kürzel
         return ok
 
     def undo(self):

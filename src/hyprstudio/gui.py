@@ -42,6 +42,7 @@ class MainWindow(QtWidgets.QWidget):
         set_lang(self.cfg.get("lang", "en"))
         _qt_lang(self.cfg.get("lang", "en"))
         model.FORMAT = self.cfg.get("hypr_format", "") if self.cfg.get("hypr_format") in ("lua", "conf") else ""
+        model.LAUNCHER_TOGGLE = launcher.state(self.cfg.get("launcher")).get("toggle", True)
         if self.cfg.get("theme") not in theme.THEMES:
             self.cfg["theme"] = "blue"
         if self.cfg.get("tab") not in TABS:

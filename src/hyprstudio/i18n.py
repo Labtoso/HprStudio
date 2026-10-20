@@ -325,6 +325,9 @@ TEXT["en"].update({'app.llauncher': 'L Launcher', 'pkg.llauncher': 'L Launcher',
 TEXT["de"].update({'act.launcher': 'Launcher öffnen'})
 TEXT["en"].update({'act.launcher': 'Open launcher'})
 
+TEXT["de"].update({'ltoggle': 'Zweites Drücken schließt', 'tip.ltoggle': 'Launcher-Taste nochmal drücken schließt den offenen Launcher wieder (gilt für Kürzel „Launcher öffnen“)'})
+TEXT["en"].update({'ltoggle': 'Second press closes', 'tip.ltoggle': 'Pressing the launcher key again closes the open launcher (for “Open launcher” shortcuts)'})
+
 _lang = "en"
 
 
