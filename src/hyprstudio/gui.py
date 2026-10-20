@@ -213,6 +213,8 @@ class MainWindow(QtWidgets.QWidget):
         for pg in self.all_pages():
             pg.update_info()
         self.other_page.refresh_packages()
+        if self.cfg.get("other_section") == "look":
+            self.other_page.refresh_look()
 
     def bar_busy(self, on: bool):
         """Fortschrittsbalken ohne Prozent (läuft hin und her) für Installationen."""
@@ -362,6 +364,8 @@ class MainWindow(QtWidgets.QWidget):
             return
         self.cfg["appearance"] = appearance.DEFAULT
         appearance.apply(appearance.DEFAULT, model.config_home(), self.log)
+        self.hypr_page.state["qt_theme"] = appearance.qt_platform_theme()  # kommt beim nächsten Anwenden mit
+        self.hypr_page.changed()
         self.log(t("look.first"))
         self.save_later()
 

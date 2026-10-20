@@ -73,6 +73,7 @@ HYPR_DEFAULT = {
     "repeat_rate": 25, "repeat_delay": 600, "sensitivity": 0.0, "accel": "default", "follow_mouse": 1,
     "left_handed": False, "mouse_natural": False, "natural_scroll": False, "dwt": True, "scroll_factor": 1.0, "gesture": 0,
     "cursor_size": 24, "cursor_theme": "", "cursor_timeout": 0.0, "cursor_hide_keys": False,
+    "qt_theme": "",  # QT_QPA_PLATFORMTHEME (kde/qt6ct) – setzt Sonstiges › Hell / Dunkel
     "no_logo": True, "bg_color": "#111111ff", "focus_on_activate": False, "swallow": False,
     "swallow_regex": "^(kitty|foot|Alacritty)$", "mmb_paste": True, "dpms_mouse": True, "dpms_key": True,
     "monitor_on": False, "monitor_mode": "preferred", "monitor_scale": "auto",
@@ -1003,6 +1004,8 @@ def hypr_lua(s: dict) -> str:
     if s["cursor_theme"]:
         lines += [f'hl.env("XCURSOR_THEME", {_lua_str(s["cursor_theme"])})',
                   f'hl.env("HYPRCURSOR_THEME", {_lua_str(s["cursor_theme"])})']
+    if s["qt_theme"]:
+        lines.append(f'hl.env("QT_QPA_PLATFORMTHEME", {_lua_str(s["qt_theme"])})')
     if s["monitor_on"]:
         sc = s["monitor_scale"]
         sc = _lua_str(sc) if sc == "auto" else sc
@@ -1047,6 +1050,8 @@ def hypr_conf(s: dict) -> str:
     out += [f"env = XCURSOR_SIZE,{s['cursor_size']}", f"env = HYPRCURSOR_SIZE,{s['cursor_size']}"]
     if s["cursor_theme"]:
         out += [f"env = XCURSOR_THEME,{s['cursor_theme']}", f"env = HYPRCURSOR_THEME,{s['cursor_theme']}"]
+    if s["qt_theme"]:
+        out.append(f"env = QT_QPA_PLATFORMTHEME,{s['qt_theme']}")
     if s["monitor_on"]:
         out.append(f"monitor = , {s['monitor_mode']}, auto, {s['monitor_scale']}")
     out += [f"exec-once = {c}" for c in _autostart(s)]

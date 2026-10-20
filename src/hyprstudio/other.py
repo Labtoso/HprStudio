@@ -222,6 +222,17 @@ class OtherPage(QtWidgets.QWidget):
         self.look_state = QtWidgets.QLabel()
         self.look_state.setObjectName("RowLabel")
         self.look_card.layout().addWidget(self.look_state)
+        # Qt-/KDE-Apps (Kate, KWrite, Dolphin …) brauchen unter Hyprland das KDE-Plattform-Theme
+        qrow = QtWidgets.QHBoxLayout()
+        self.look_qt = QtWidgets.QLabel()
+        self.look_qt.setObjectName("RowLabel")
+        self.look_qt_btn = QtWidgets.QPushButton()
+        self.look_qt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.look_qt_btn.clicked.connect(lambda: self.install_keys(["qtdark"]))
+        qrow.addWidget(self.look_qt)
+        qrow.addWidget(self.look_qt_btn)
+        qrow.addStretch()
+        self.look_card.layout().addLayout(qrow)
         ll.addWidget(self.look_card)
         ll.addStretch()
 
@@ -303,12 +314,30 @@ class OtherPage(QtWidgets.QWidget):
         self.look_seg.retranslate()
         self.look_seg.select(mode)
         self.look_state.setText(t("look.active", name=t("look." + mode)))
+        ok = packages.installed("qtdark")
+        self.look_qt.setText(t("look.qt_ok") if ok else t("look.qt_missing"))
+        self.look_qt_btn.setText(t("look.qt_install"))
+        self.look_qt_btn.setVisible(not ok)
+        if ok and self.win.hypr_page.state.get("qt_theme") != appearance.qt_platform_theme():
+            self.set_look(mode)  # z. B. gerade plasma-integration installiert → Hyprland-Umgebung nachziehen
 
     def set_look(self, mode: str):
         self.win.log("")
         appearance.apply(mode, model.config_home(), self.win.log)
         self.win.cfg["appearance"] = mode
         self.win.save_later()
+        # Hyprland sagt jeder neu gestarteten Qt-App, dass sie dem KDE-Farbschema folgen soll
+        hp = self.win.hypr_page
+        qt = appearance.qt_platform_theme()
+        if hp.state.get("qt_theme") != qt:
+            hp.state["qt_theme"] = qt
+            hp.changed()
+            hdir = model.config_home() / "hypr"
+            fmt = model.hypr_format(hdir)
+            if fmt and (hdir / f"hyprstudio.{fmt}").is_file():  # Hyprland wird schon von Hypr Studio gestaltet
+                self._apply_hypr()
+            else:
+                self.win.log(t("look.qt_hint"))
         self.refresh_look()
         self.win.set_status(t("look.active", name=t("look." + mode)))
 

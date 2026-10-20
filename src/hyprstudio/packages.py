@@ -1,9 +1,10 @@
 """Optionale Programme selbst auswählen und installieren (nichts davon wird automatisch installiert). Ohne Qt."""
 
+import glob
 import shutil
 import subprocess
 
-from . import model
+from . import appearance, model
 
 # key: (Gruppe, Prüf-Befehl oder Font-Name, {Paketmanager: [Pakete]})
 PACKAGES = {
@@ -24,6 +25,9 @@ PACKAGES = {
     "hyprcursor": ("tools", "hyprcursor-util", {"pacman": ["hyprcursor"], "dnf": ["hyprcursor"]}),
     "hyprpaper": ("tools", "hyprpaper", {"pacman": ["hyprpaper"], "dnf": ["hyprpaper"]}),
     "cliphist": ("tools", "cliphist", {"pacman": ["cliphist"]}),
+    "qtdark": ("tools", "file:" + "|".join(appearance.KDE_PLUGIN_GLOBS),
+               {"pacman": ["plasma-integration"], "apt": ["plasma-integration"], "dnf": ["plasma-integration"],
+                "zypper": ["plasma6-integration-plugin"]}),
     "fastfetch": ("tools", "fastfetch", {"pacman": ["fastfetch"], "apt": ["fastfetch"], "dnf": ["fastfetch"],
                                          "zypper": ["fastfetch"]}),
 }
@@ -47,6 +51,8 @@ def installed(key: str) -> bool:
     check = PACKAGES[key][1]
     if model.DRY:  # Testmodus: etwas gemischt anzeigen, „Installiertes“ merken
         return (key in ("waybar", "rofi") or key in DRY_INSTALLED) and key not in DRY_REMOVED
+    if check.startswith("file:"):  # z. B. Qt-Plugin ohne eigenen Befehl
+        return any(glob.glob(g) for g in check[5:].split("|"))
     if check.startswith("font:"):
         try:
             out = subprocess.run(["fc-list"], capture_output=True, text=True, timeout=8).stdout
