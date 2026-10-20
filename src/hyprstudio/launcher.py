@@ -98,9 +98,11 @@ def _hex(c: str) -> str:
 
 
 def _rofi_match(s: dict) -> str:
-    """Programmnamen zuerst: nur im Namen suchen, Wortanfang muss passen, beste Treffer oben (fzf)."""
+    """Suche ab Namensanfang: nur im Namen, Eingabe als Ganzes ab Wortanfang (Rofi kennt kein reines
+    „beginnt mit“), fzf-Sortierung setzt Namen, die mit der Eingabe anfangen, nach oben → Enter öffnet sie."""
     if s["name_search"]:
-        return '    matching: "prefix";\n    drun-match-fields: "name";\n    sorting-method: "fzf";\n'
+        return ('    matching: "prefix";\n    tokenize: false;\n    drun-match-fields: "name";\n'
+                '    sorting-method: "fzf";\n')
     return f'    matching: "{s["matching"]}";\n'
 
 
@@ -328,7 +330,7 @@ def fuzzel_ini(s: dict) -> str:
         f"terminal={s['terminal']} -e",
     ]
     if s["name_search"]:  # nur Name/Dateiname, kein Teil-Treffer in Beschreibung oder Kategorie
-        main += ["match-mode=exact", "fields=name,filename"]
+        main += ["match-mode=exact", "fields=name"]
     main += [
         f"lines={s['lines'] * (s['columns'] if s['grid'] else 1)}",
         f"width={chars}",
