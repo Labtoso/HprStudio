@@ -21,6 +21,7 @@ Hypr Studio is a dark, rounded desktop app for Linux (Python + PySide6) by **Lab
 - **System** – autostart (Waybar starts exactly once), monitor mode and scaling
 - **Wallpaper (hyprpaper)** – per monitor, slideshow, library, **search & download online** (wallhaven, SFW only) with filters
 - **Cursor (hyprcursor)** – search installed themes, **install new ones** from a catalogue sorted by rating, newest or downloads
+- **Lock screen (hyprlock)** – presets, live preview, background (screenshot, wallpaper, image or colour) with blur, clock, date, greeting, profile picture, password field style, “Super + L locks” and a **Lock now** test button
 
 ### Waybar
 - Presets, **drag & drop bar editor**, module options, colours and fonts, on/off switch
@@ -38,14 +39,15 @@ A small launcher that only shows apps whose **name starts with what you type** �
 - **Repair** – reads `hyprctl configerrors` and fixes or comments out broken lines
 - **Install / uninstall** helpers (Waybar, launchers, Kitty, hyprpaper, hyprcursor, fastfetch …)
 - **Kitty** terminal styling incl. Fastfetch and own commands on start
-- **Light / Dark** colour scheme for all apps (GTK + KDE), mouse & touchpad settings, backups browser
+- **Light / Dark** colour scheme for all apps – GTK, libadwaita, Electron and Qt/KDE apps like **Kate and KWrite** (KDE colour scheme + `QT_QPA_PLATFORMTHEME` under Hyprland); mouse & touchpad settings, backups browser
+- **Fonts** – every font field is a searchable dropdown that shows each font in its own style; missing **Nerd Fonts install with one click** (no password)
 
 ---
 
 ## Requirements
 - Hyprland (Lua config `hyprland.lua` – the old `.conf` format can be chosen under **Settings › Advanced**; Hyprland 0.57+ only supports Lua)
 - Python 3 and PySide6 (`sudo pacman -S pyside6`)
-- Optional: waybar, rofi / wofi / fuzzel, kitty, hyprpaper, hyprcursor
+- Optional: waybar, rofi / wofi / fuzzel, kitty, hyprpaper, hyprcursor, hyprlock, plasma-integration
 
 ## Installation
 From the `installer/` folder:
