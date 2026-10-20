@@ -161,7 +161,7 @@ class WallTile(QtWidgets.QFrame):
         self.pic = QtWidgets.QLabel()
         self.pic.setFixedSize(180, 101)
         self.pic.setStyleSheet("background: #1b2430; border-radius: 10px;")
-        info = QtWidgets.QLabel(f"{item['res'].replace('x', '×')}   ♥ {item['favs']}")
+        info = QtWidgets.QLabel(f"{item['res'].replace('x', '×')}  ·  {t('paper.favs', n=item['favs'])}")
         info.setObjectName("RowLabel")
         lay.addWidget(self.pic)
         lay.addWidget(info)
