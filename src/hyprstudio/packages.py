@@ -25,6 +25,9 @@ PACKAGES = {
     "hyprcursor": ("tools", "hyprcursor-util", {"pacman": ["hyprcursor"], "dnf": ["hyprcursor"]}),
     "hyprpaper": ("tools", "hyprpaper", {"pacman": ["hyprpaper"], "dnf": ["hyprpaper"]}),
     "cliphist": ("tools", "cliphist", {"pacman": ["cliphist"]}),
+    "hyprpolkitagent": ("tools", "file:/usr/lib/hyprpolkitagent/hyprpolkitagent|/usr/libexec/hyprpolkitagent"
+                                 "|/usr/lib/systemd/user/hyprpolkitagent.service",
+                        {"pacman": ["hyprpolkitagent"], "dnf": ["hyprpolkitagent"]}),
     "qtdark": ("tools", "file:" + "|".join(appearance.KDE_PLUGIN_GLOBS),
                {"pacman": ["plasma-integration"], "apt": ["plasma-integration"], "dnf": ["plasma-integration"],
                 "zypper": ["plasma6-integration-plugin"]}),

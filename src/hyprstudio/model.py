@@ -78,6 +78,7 @@ HYPR_DEFAULT = {
     "swallow_regex": "^(kitty|foot|Alacritty)$", "mmb_paste": True, "dpms_mouse": True, "dpms_key": True,
     "monitor_on": False, "monitor_mode": "preferred", "monitor_scale": "auto",
     "autostart": [], "autostart_waybar": False, "waybar_managed": False,
+    "polkit_agent": False, "polkit_managed": False,  # hyprpolkitagent beim Start (Sonstiges › Polkit-Agent)
     "workspaces_on": False, "workspaces": [],  # Arbeitsflächen-Regeln (Name, Monitor, Lücken …)
     "skip_opts": [],  # vom Fehler-Fixer abgeschaltete Optionen, z. B. "decoration.blur.xray"
     "binds": [],  # leer = Hypr Studio schreibt keine Tastenkürzel
@@ -896,11 +897,65 @@ def _is_waybar_cmd(cmd: str) -> bool:
 
 
 def _autostart(s: dict) -> list:
-    """Waybar genau einmal: nur über den Schalter, und nur wenn noch keins läuft."""
-    cmds = [c.strip() for c in s["autostart"] if c.strip() and not _is_waybar_cmd(c)]
+    """Waybar genau einmal: nur über den Schalter, und nur wenn noch keins läuft. Polkit-Agent ebenso über seinen Schalter."""
+    cmds = [c.strip() for c in s["autostart"] if c.strip() and not _is_waybar_cmd(c)
+            and not (s["polkit_managed"] and _is_polkit_cmd(c))]
     if s["autostart_waybar"]:
         cmds.insert(0, WAYBAR_ONCE)
+    if s["polkit_agent"]:
+        cmds.insert(0, POLKIT_CMD)
     return cmds
+
+
+POLKIT_CMD = "systemctl --user start hyprpolkitagent"
+
+
+def _is_polkit_cmd(cmd: str) -> bool:
+    """Startet der Befehl nur den Polkit-Agent (systemd-Dienst oder direkt)?"""
+    import re
+    c = cmd.strip()
+    return bool(re.fullmatch(r"(systemctl\s+--user\s+(re)?start\s+hyprpolkitagent(\.service)?"
+                             r"|\S*hyprpolkitagent)(\s*&)?", c))
+
+
+def foreign_polkit_lines(text: str, fmt: str) -> list:
+    """Zeilen in der Hauptdatei, die hyprpolkitagent selbst starten (exec_cmd bzw. exec-once)."""
+    import re
+    out = []
+    for i, ln in enumerate(text.splitlines()):
+        st = ln.strip()
+        if "hyprpolkitagent" not in st or st.startswith("--" if fmt == "lua" else "#"):
+            continue
+        if fmt == "lua":
+            m = re.search(r"exec_cmd\(\s*([\"'])(.*?)\1", st)
+        else:
+            m = re.match(r"exec(?:-once)?\s*=\s*()(.*)$", st)
+        if m and _is_polkit_cmd(m.group(2)):
+            out.append(i)
+    return out
+
+
+def detect_polkit(hdir: Path, s: dict) -> bool:
+    """Startet die vorhandene Config den Polkit-Agent schon (Hauptdatei oder Autostart-Liste)?"""
+    if any(_is_polkit_cmd(c) for c in s["autostart"]):
+        return True
+    fmt = hypr_format(hdir)
+    main = hdir / f"hyprland.{fmt}" if fmt else None
+    if not (main and main.is_file()):
+        return False
+    return bool(foreign_polkit_lines(main.read_text(encoding="utf-8", errors="replace"), fmt))
+
+
+def manage_polkit_autostart(hdir: Path, s: dict, log) -> int:
+    """Schalter an: eigene Starts in hyprland.lua/.conf auskommentieren, damit der Agent nicht doppelt startet."""
+    if not (s.get("polkit_managed") and s.get("polkit_agent")):
+        return 0
+    fmt = hypr_format(hdir)
+    main = hdir / f"hyprland.{fmt}" if fmt else None
+    if not (main and main.is_file()):
+        return 0
+    idx = foreign_polkit_lines(main.read_text(encoding="utf-8", errors="replace"), fmt)
+    return _comment_lines(main, idx, "-- [Hypr Studio] " if fmt == "lua" else "# [Hypr Studio] ", log)
 
 
 def foreign_waybar_lines(text: str, fmt: str) -> tuple:
@@ -1142,6 +1197,7 @@ def apply_hypr(s: dict, hdir: Path, log) -> tuple[bool, str]:
             fh.write(("" if text.endswith("\n") or not text else "\n") + f"\n{c} {MARK}\n{line}\n")
         log(f"+ {main}: {line}")
     manage_waybar_autostart(hdir, s, log)
+    manage_polkit_autostart(hdir, s, log)
     run(["hyprctl", "reload"], log)
     return True, fmt
 
