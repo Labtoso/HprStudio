@@ -262,6 +262,11 @@ class BindRow(QtWidgets.QFrame):
             for d in model.DIRECTIONS:
                 self.arg.addItem(t("dir." + d), d)
             self.arg.setCurrentIndex(max(0, self.arg.findData(value)))
+        elif kind == "launcher":  # Auswahl: L Launcher, Rofi, Wofi, Fuzzel
+            self.arg.setEditable(False)
+            for k in model.LAUNCHER_CMDS:
+                self.arg.addItem(t("app." + k), k)
+            self.arg.setCurrentIndex(max(0, self.arg.findData(value)))
         elif kind:
             self.arg.setEditable(True)
             items = list(model.EXEC_SUGGEST) if kind == "cmd" else [str(i) for i in range(1, 11)]
@@ -277,7 +282,7 @@ class BindRow(QtWidgets.QFrame):
     def value(self) -> dict:
         a = self.action.currentData()
         kind = model.ACTIONS[a]
-        if kind == "dir":
+        if kind in ("dir", "launcher"):
             arg = self.arg.currentData() or ""
         elif kind:
             arg = self.arg.currentText().strip()

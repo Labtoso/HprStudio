@@ -322,6 +322,9 @@ TEXT["en"].update({'pkg.remove': 'Remove {n}', 'pkg.remove0': 'Remove selected',
 TEXT["de"].update({'app.llauncher': 'L Launcher', 'pkg.llauncher': 'L Launcher', 'pkgd.llauncher': 'Eigener Launcher von Hypr Studio: sucht bei jedem Buchstaben neu, nur Namen mit diesem Anfang'})
 TEXT["en"].update({'app.llauncher': 'L Launcher', 'pkg.llauncher': 'L Launcher', 'pkgd.llauncher': "Hypr Studio's own launcher: searches again with every letter, only names starting with it"})
 
+TEXT["de"].update({'act.launcher': 'Launcher öffnen'})
+TEXT["en"].update({'act.launcher': 'Open launcher'})
+
 _lang = "en"
 
 

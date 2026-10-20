@@ -842,16 +842,17 @@ class LauncherPage(EditorPage):
         hp = self.win.hypr_page
         n = 0
         found = model.launcher_binds(hp.hdir(), hp.state["binds"])
+        app = self.state["app"]
         for b, where in found:
-            if b["arg"] == cmd:
+            if model.bind_cmd(b) == cmd:
                 continue
             if where == "own":
-                b["arg"] = cmd
+                b["action"], b["arg"] = "launcher", app
             else:  # Kürzel aus hyprland.lua übernehmen; das Original wird beim Anwenden auskommentiert
-                hp.state["binds"].append(dict(b, arg=cmd))
+                hp.state["binds"].append(dict(b, action="launcher", arg=app))
             n += 1
         if not found:  # gar kein Launcher-Kürzel → Super + Leertaste anlegen
-            hp.state["binds"].append({"mods": ["SUPER"], "key": "space", "action": "exec", "arg": cmd, "flags": []})
+            hp.state["binds"].append({"mods": ["SUPER"], "key": "space", "action": "launcher", "arg": app, "flags": []})
             n += 1
         hp.refresh_controls()
         hp.changed()
@@ -905,8 +906,8 @@ class LauncherPage(EditorPage):
             hp = self.win.hypr_page
             found = model.launcher_binds(hp.hdir(), hp.state["binds"])
             cmd = launcher.COMMANDS[app]
-            parts = [f"{combo_label(b['mods'], b['key'])} → {b['arg'].split(' ', 1)[0]}" for b, _ in found]
-            wrong = [b for b, _ in found if b["arg"] != cmd]
+            parts = [f"{combo_label(b['mods'], b['key'])} → {model.bind_cmd(b).split(' ', 1)[0]}" for b, _ in found]
+            wrong = [b for b, _ in found if model.bind_cmd(b) != cmd]
             self.bound_info.setText(t("launcher.bound", list="   ·   ".join(parts)) if parts else t("launcher.unbound"))
             set_chip(self.bound_chip, not wrong and bool(found), t("launcher.ok") if not wrong and found
                      else t("launcher.other"))

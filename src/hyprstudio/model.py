@@ -244,12 +244,30 @@ MOD_ALIAS = {"SUPER": "SUPER", "WIN": "SUPER", "MOD4": "SUPER", "META": "SUPER",
              "SHIFT": "SHIFT", "CTRL": "CTRL", "CONTROL": "CTRL", "ALT": "ALT", "MOD1": "ALT"}
 # Aktion → Art des Arguments (None = keins)
 ACTIONS = {
-    "exec": "cmd", "close": None, "kill": None, "fullscreen": None, "float": None, "pseudo": None,
+    "exec": "cmd", "launcher": "launcher", "close": None, "kill": None, "fullscreen": None, "float": None, "pseudo": None,
     "togglesplit": None, "focus": "dir", "movewin": "dir", "workspace": "ws", "movetows": "ws",
     "wsnext": None, "wsprev": None, "special": None, "movespecial": None, "drag": None, "resize": None,
     "exit": None,
 }
 MOUSE_ACTIONS = ("drag", "resize")
+# Aktion „Launcher öffnen“: Auswahl im Kürzel → Befehl
+LAUNCHER_CMDS = {"llauncher": "l-launcher", "rofi": "rofi -show drun", "wofi": "wofi --show drun", "fuzzel": "fuzzel"}
+
+
+def bind_cmd(b: dict) -> str:
+    """Befehl, den ein Kürzel startet („Launcher öffnen“ → Befehl des gewählten Launchers)."""
+    if b.get("action") == "launcher":
+        return LAUNCHER_CMDS.get(b.get("arg", ""), "")
+    return b.get("arg", "") if b.get("action") == "exec" else ""
+
+
+def as_launcher(action: str, arg: str) -> tuple:
+    """Exec eines bekannten Launchers → Aktion „Launcher öffnen“ (für Import aus der Config)."""
+    if action == "exec":
+        for k, c in LAUNCHER_CMDS.items():
+            if arg.strip() == c:
+                return "launcher", k
+    return action, arg
 FLAGS = ("locked", "repeating", "release")
 DIRECTIONS = ("left", "right", "up", "down")
 EXEC_SUGGEST = ("kitty", "foot", "alacritty", "dolphin", "nautilus", "thunar", "firefox", "chromium",
@@ -283,7 +301,7 @@ LR = ("locked", "repeating")
 TEMPLATES = {
     "basics": [
         _bind(["SUPER"], "Q", "exec", "kitty"), _bind(["SUPER"], "C", "close"), _bind(["SUPER"], "E", "exec", "dolphin"),
-        _bind(["SUPER"], "R", "exec", "rofi -show drun"), _bind(["SUPER"], "V", "float"),
+        _bind(["SUPER"], "R", "launcher", "rofi"), _bind(["SUPER"], "V", "float"),
         _bind(["SUPER"], "F", "fullscreen"), _bind(["SUPER"], "J", "togglesplit"), _bind(["SUPER"], "P", "pseudo"),
         _bind(["SUPER"], "L", "exec", "hyprlock"), _bind(["SUPER"], "M", "exit"),
     ],
@@ -340,6 +358,8 @@ def bind_ok(b: dict) -> bool:
         return False
     if kind == "dir" and b["arg"] not in DIRECTIONS:
         return False
+    if kind == "launcher" and b["arg"] not in LAUNCHER_CMDS:
+        return False
     return True
 
 
@@ -351,6 +371,7 @@ def bind_lua(b: dict) -> str:
     a, g = b["action"], b["arg"]
     dsp = {
         "exec": lambda: f"hl.dsp.exec_cmd({_lua_str(g)})",
+        "launcher": lambda: f"hl.dsp.exec_cmd({_lua_str(LAUNCHER_CMDS[g])})",
         "close": lambda: "hl.dsp.window.close()",
         "kill": lambda: "hl.dsp.window.kill()",
         "fullscreen": lambda: 'hl.dsp.window.fullscreen({ action = "toggle" })',
@@ -383,7 +404,7 @@ CONF_DSP = {"close": "killactive,", "kill": "forcekillactive,", "fullscreen": "f
 
 def bind_conf(b: dict) -> list:
     a, g = b["action"], b["arg"]
-    d = CONF_DSP.get(a) or {"exec": f"exec, {g}", "focus": f"movefocus, {g[:1]}", "movewin": f"movewindow, {g[:1]}",
+    d = CONF_DSP.get(a) or {"exec": f"exec, {g}", "launcher": f"exec, {LAUNCHER_CMDS.get(g, '')}", "focus": f"movefocus, {g[:1]}", "movewin": f"movewindow, {g[:1]}",
                             "workspace": f"workspace, {g}", "movetows": f"movetoworkspace, {g}"}[a]
     mods = " ".join(b["mods"])
     letters = "".join(c for f, c in (("locked", "l"), ("repeating", "e"), ("release", "r")) if f in bind_flags(b))
@@ -475,7 +496,7 @@ def _parse_dsp(dsp: str, local: dict) -> tuple | None:
             cmd = json.loads(f'"{cmd}"')
         except ValueError:
             pass
-        return "exec", cmd
+        return as_launcher("exec", cmd)
     simple = {"hl.dsp.window.close()": "close", "hl.dsp.window.kill()": "kill", "hl.dsp.window.pseudo()": "pseudo",
               "hl.dsp.window.drag()": "drag", "hl.dsp.window.resize()": "resize", "hl.dsp.exit()": "exit",
               'hl.dsp.layout("togglesplit")': "togglesplit"}
@@ -602,7 +623,7 @@ def import_conf(text: str) -> tuple:
         if flags == "m":
             act, arg = {"movewindow": ("drag", ""), "resizewindow": ("resize", "")}.get(d, (None, ""))
         elif d == "exec" and arg:
-            act = "exec"
+            act, arg = as_launcher("exec", arg)
         elif d in rev and (d != "togglespecialworkspace" or arg in ("", "magic")):
             act, arg = rev[d], ""
         elif d == "layoutmsg" and arg == "togglesplit":
@@ -671,7 +692,7 @@ def is_launcher_cmd(cmd: str) -> bool:
 def launcher_binds(hdir: Path, own: list) -> list:
     """Kürzel, die einen Launcher starten: [(bind, "own"|"config")].
     "config" = steht in hyprland.lua/.conf und wird nicht schon von einem eigenen Kürzel überdeckt."""
-    out = [(b, "own") for b in own if b["action"] == "exec" and is_launcher_cmd(b["arg"])]
+    out = [(b, "own") for b in own if is_launcher_cmd(bind_cmd(b))]
     mine = {combo(b["mods"], b["key"]) for b in own if bind_ok(b)}
     fmt = hypr_format(hdir)
     main = hdir / f"hyprland.{fmt}" if fmt else None
@@ -679,7 +700,7 @@ def launcher_binds(hdir: Path, own: list) -> list:
         text = main.read_text(encoding="utf-8", errors="replace")
         found, _ = import_lua(text) if fmt == "lua" else import_conf(text)
         for b in found:
-            if b["action"] == "exec" and is_launcher_cmd(b["arg"]) and combo(b["mods"], b["key"]) not in mine:
+            if is_launcher_cmd(bind_cmd(b)) and combo(b["mods"], b["key"]) not in mine:
                 out.append((b, "config"))
     return out
 
