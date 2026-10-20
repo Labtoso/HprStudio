@@ -5,7 +5,7 @@ from pathlib import Path
 
 import shutil
 
-from . import appearance, dialogs, fixer, model, packages, theme
+from . import appearance, dialogs, fixer, hardware, model, packages, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
@@ -61,7 +61,7 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "polkit", "kitty", "look", "scroll", "tools", "backups")
+    SECTIONS = ("fix", "install", "polkit", "laptop", "kitty", "look", "scroll", "tools", "backups")
 
     def __init__(self, win):
         super().__init__()
@@ -267,6 +267,46 @@ class OtherPage(QtWidgets.QWidget):
         pkl.addWidget(self.pk_card)
         pkl.addStretch()
 
+        # --- Laptop-Tasten: Gerät erkennen, Helligkeit/Lautstärke/Stumm wie unter KDE ---
+        self.p_laptop, lpl = self._page()
+        self.lt_card = Card("laptop.title", self)
+        self.lt_dev = QtWidgets.QLabel()
+        self.lt_dev.setObjectName("PageTitle")
+        self.lt_card.layout().insertWidget(1, self.lt_dev)  # Gerät ganz oben, unter dem Kartentitel
+        trow = QtWidgets.QHBoxLayout()
+        trow.setSpacing(8)
+        self.lt_chips = {}
+        for key in ("laptop", "brightnessctl", "volume", "playerctl"):
+            lb = QtWidgets.QLabel()
+            trow.addWidget(lb)
+            self.lt_chips[key] = lb
+        trow.addStretch()
+        self.lt_install = QtWidgets.QPushButton()
+        self.lt_install.setObjectName("Primary")
+        self.lt_install.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lt_install.clicked.connect(lambda: self.install_keys(["media"]))
+        trow.addWidget(self.lt_install)
+        self.lt_card.layout().insertLayout(2, trow)
+        self.lt_sw = Switch()
+        self.lt_sw.toggled.connect(self.set_laptop)
+        self.lt_card._add("laptop.keys", self.lt_sw, None, "tip.laptop.keys", None, label_key="laptop.keys")
+        # Sofort ausprobieren (zeigt Fehler wie „keine Geräte“ im Protokoll)
+        test = QtWidgets.QHBoxLayout()
+        test.setSpacing(8)
+        self.lt_tests = []
+        for key, cmd in (("bright_down", "bd"), ("bright_up", "bu"), ("vol_down", "vd"), ("vol_up", "vu"),
+                         ("mute", "m")):
+            b = QtWidgets.QPushButton()
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(lambda _=False, c=cmd: self.test_key(c))
+            test.addWidget(b)
+            self.lt_tests.append((b, key))
+        test.addStretch()
+        self.lt_card._add("laptop.test", QtWidgets.QWidget(), None, None, None, label_key="laptop.test")
+        self.lt_card.grid.itemAtPosition(self.lt_card.grid.rowCount() - 1, 1).widget().setLayout(test)
+        lpl.addWidget(self.lt_card)
+        lpl.addStretch()
+
         # --- Scrollrichtung (schreibt über Hyprland und wendet sofort an) ---
         self.p_scroll, scl = self._page()
         self.scroll_card = Card("scroll.title", self)
@@ -301,7 +341,7 @@ class OtherPage(QtWidgets.QWidget):
                       "cursor": Gate(self.cursor, "hyprcursor", win),
                       "lock": Gate(self.lock, "hyprlock", win)}
         self.stack.addWidget(self.gates["kitty"])
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "polkit": self.p_polkit, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
+        self.pages = {"fix": self.p_fix, "install": self.p_inst, "polkit": self.p_polkit, "laptop": self.p_laptop, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
                       "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
@@ -335,6 +375,8 @@ class OtherPage(QtWidgets.QWidget):
             self.refresh_scroll()
         if key == "polkit":
             self.refresh_polkit()
+        if key == "laptop":
+            self.refresh_laptop()
         if key == "backups":
             self.load_backups()
         elif key == "install":
@@ -413,6 +455,54 @@ class OtherPage(QtWidgets.QWidget):
         self.win.log(t("polkit.on") if on else t("polkit.off"))
         if not self._apply_hypr_if_managed():
             self.win.log(t("polkit.later"))
+
+    # ----- Laptop-Tasten -----
+    def refresh_laptop(self):
+        self.lt_card.retranslate()
+        hp = self.win.hypr_page
+        dev = hardware.detect()
+        tools = hardware.tools()
+        self.lt_dev.setText(hardware.label(dev))
+        set_chip(self.lt_chips["laptop"], dev["laptop"], t("laptop.is_laptop") if dev["laptop"] else t("laptop.desktop"))
+        for key, ok in tools.items():
+            name = hardware.volume_tool() if key == "volume" else key
+            set_chip(self.lt_chips[key], ok, f"{name} ✓" if ok else f"{name} ✗")
+        missing = not (tools["brightnessctl"] and tools["playerctl"])
+        self.lt_install.setText(t("gate.install", name="brightnessctl + playerctl"))
+        self.lt_install.setVisible(missing)
+        self.lt_install.setEnabled(packages.available("media", packages.manager()))
+        for b, key in self.lt_tests:
+            b.setText(t("laptop." + key))
+        if hp.state["vol_tool"] != hardware.volume_tool():
+            hp.state["vol_tool"] = hardware.volume_tool()
+            hp.changed()
+        # noch nie selbst geschaltet: auf Laptops automatisch an
+        if not hp.state["laptop_managed"] and dev["laptop"]:
+            self.set_laptop(True)
+        self.lt_sw.set_now(hp.state["laptop_keys"])
+
+    def set_laptop(self, on: bool):
+        hp = self.win.hypr_page
+        if hp.state["laptop_managed"] and hp.state["laptop_keys"] == on:
+            return
+        hp.state["laptop_keys"] = bool(on)
+        hp.state["laptop_managed"] = True
+        hp.state["vol_tool"] = hardware.volume_tool()
+        if on:  # gleiche Tasten aus der eigenen Kürzel-Liste nehmen, sonst doppelt
+            hp.state["binds"] = [b for b in hp.state["binds"] if not model.is_laptop_bind(b)]
+        hp.refresh_controls()
+        hp.changed()
+        self.win.log("")
+        self.win.log(t("laptop.on") if on else t("laptop.off"))
+        if not self._apply_hypr_if_managed():
+            self.win.log(t("polkit.later"))
+
+    def test_key(self, which: str):
+        up, down, mute, _ = model.VOLUME_CMDS[hardware.volume_tool()]
+        cmd = {"bu": model.BRIGHT_UP, "bd": model.BRIGHT_DOWN, "vu": up, "vd": down, "m": mute}[which]
+        self.win.log("")
+        ok = model.run(["sh", "-c", cmd], self.win.log)
+        self.win.set_status(t("laptop.test_ok") if ok else t("laptop.test_fail"))
 
     def start_polkit(self):
         self.win.log("")

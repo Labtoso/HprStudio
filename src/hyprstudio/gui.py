@@ -217,6 +217,8 @@ class MainWindow(QtWidgets.QWidget):
             self.other_page.refresh_look()
         if self.cfg.get("other_section") == "polkit":
             self.other_page.refresh_polkit()
+        if self.cfg.get("other_section") == "laptop":
+            self.other_page.refresh_laptop()
 
     def bar_busy(self, on: bool):
         """Fortschrittsbalken ohne Prozent (läuft hin und her) für Installationen."""
