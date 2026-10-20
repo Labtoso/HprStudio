@@ -733,9 +733,14 @@ class RoundPopups(QtCore.QObject):
     """App-weit: jedes Auswahlmenü bekommt runde Ecken ohne helle Box."""
 
     def eventFilter(self, obj, e):
-        if e.type() == QtCore.QEvent.Type.Polish and isinstance(obj, QtWidgets.QComboBox) \
-                and not isinstance(obj, SearchCombo):
-            round_popup(obj)
+        if e.type() == QtCore.QEvent.Type.Polish:
+            if isinstance(obj, QtWidgets.QComboBox) and not isinstance(obj, SearchCombo):
+                round_popup(obj)
+            elif isinstance(obj, QtWidgets.QMenu) and not obj.property("hs_round"):
+                obj.setProperty("hs_round", True)
+                obj.setWindowFlags(obj.windowFlags() | Qt.WindowType.FramelessWindowHint
+                                   | Qt.WindowType.NoDropShadowWindowHint)
+                obj.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         return False
 
 

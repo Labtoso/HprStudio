@@ -301,6 +301,12 @@ TEXT["en"].update({'sec.scroll': 'Mouse & touchpad', 'scroll.title': 'Scrolling 
 TEXT["de"].update({'key.super_alone': 'Super allein', 'key.SUPER_L': 'Super allein'})
 TEXT["en"].update({'key.super_alone': 'Super alone', 'key.SUPER_L': 'Super alone'})
 
+TEXT["de"].update({'cur.sort.rec': 'Empfohlen', 'cur.sort.high': 'Beste Bewertung', 'cur.sort.new': 'Neueste', 'cur.sort.down': 'Meiste Downloads', 'cur.meta': '★ {score}  ·  {dl} Downloads  ·  {date}', 'cur.more': 'Mehr laden', 'cur.loading_list': 'Lade Katalog …', 'cur.offline': 'Katalog nicht erreichbar – Internetverbindung prüfen', 'cur.nothing_new': '{name}: nichts Neues (schon installiert?)'})
+TEXT["en"].update({'cur.sort.rec': 'Recommended', 'cur.sort.high': 'Top rated', 'cur.sort.new': 'Newest', 'cur.sort.down': 'Most downloads', 'cur.meta': '★ {score}  ·  {dl} downloads  ·  {date}', 'cur.more': 'Load more', 'cur.loading_list': 'Loading catalogue …', 'cur.offline': 'Catalogue unreachable – check your internet connection', 'cur.nothing_new': '{name}: nothing new (already installed?)'})
+
+TEXT["de"].update({'launcher.bound': 'Kürzel: {list}', 'launcher.unbound': 'Kein Kürzel startet einen Launcher', 'launcher.ok': 'Passt', 'launcher.other': 'Anderer Launcher', 'tip.launcher.use': 'Alle Launcher-Kürzel (auch die aus deiner hyprland.lua) und den Waybar-Knopf auf diesen Launcher umstellen und sofort anwenden'})
+TEXT["en"].update({'launcher.bound': 'Shortcuts: {list}', 'launcher.unbound': 'No shortcut starts a launcher', 'launcher.ok': 'Matches', 'launcher.other': 'Other launcher', 'tip.launcher.use': 'Point every launcher shortcut (including those in your hyprland.lua) and the Waybar button at this launcher and apply right away'})
+
 _lang = "en"
 
 

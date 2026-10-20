@@ -757,6 +757,15 @@ class LauncherPage(EditorPage):
             self.btn_inst_app.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_inst_app.clicked.connect(lambda: self.win.other_page.install_keys([self.state["app"]]))
             c.layout().addWidget(self.btn_inst_app, 0, Qt.AlignmentFlag.AlignLeft)
+            brow = QtWidgets.QHBoxLayout()
+            brow.setSpacing(10)
+            self.bound_info = QtWidgets.QLabel()
+            self.bound_info.setObjectName("RowLabel")
+            self.bound_info.setWordWrap(True)
+            self.bound_chip = QtWidgets.QLabel()
+            brow.addWidget(self.bound_chip)
+            brow.addWidget(self.bound_info, 1)
+            c.layout().addLayout(brow)
             self.btn_use = QtWidgets.QPushButton()
             self.btn_use.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_use.clicked.connect(self.use_everywhere)
@@ -831,15 +840,27 @@ class LauncherPage(EditorPage):
         wb.refresh_controls()
         wb.changed()
         hp = self.win.hypr_page
-        names = ("rofi", "wofi", "fuzzel", "hyprlauncher", "tofi", "anyrun", "walker")
         n = 0
-        for b in hp.state["binds"]:
-            if b["action"] == "exec" and b["arg"].split(" ", 1)[0] in names and b["arg"] != cmd:
+        found = model.launcher_binds(hp.hdir(), hp.state["binds"])
+        for b, where in found:
+            if b["arg"] == cmd:
+                continue
+            if where == "own":
                 b["arg"] = cmd
-                n += 1
-        if n:
-            hp.refresh_controls()
-            hp.changed()
+            else:  # Kürzel aus hyprland.lua übernehmen; das Original wird beim Anwenden auskommentiert
+                hp.state["binds"].append(dict(b, arg=cmd))
+            n += 1
+        if not found:  # gar kein Launcher-Kürzel → Super + Leertaste anlegen
+            hp.state["binds"].append({"mods": ["SUPER"], "key": "space", "action": "exec", "arg": cmd, "flags": []})
+            n += 1
+        hp.refresh_controls()
+        hp.changed()
+        self.win.log("")
+        self.apply()     # Launcher-Config (Suche) schreiben
+        model.comment_conflicts(hp.hdir(), hp.state["binds"], self.win.log)  # Original-Kürzel aus
+        hp.apply()       # Kürzel in Hyprland übernehmen
+        wb.apply()
+        self.update_info()
         self.win.set_status(t("launcher.used", cmd=cmd, n=n))
 
     def preset_pixmap(self, name):
@@ -879,3 +900,16 @@ class LauncherPage(EditorPage):
         if hasattr(self, "app_info"):
             self.app_info.setText(t("launcher.cmd", cmd=launcher.COMMANDS[app]) +
                                   ("" if ok else "  ·  " + t("launcher.missing", app=app)))
+        if hasattr(self, "bound_info") and hasattr(self.win, "hypr_page"):
+            from .keys import combo_label
+            hp = self.win.hypr_page
+            found = model.launcher_binds(hp.hdir(), hp.state["binds"])
+            cmd = launcher.COMMANDS[app]
+            parts = [f"{combo_label(b['mods'], b['key'])} → {b['arg'].split(' ', 1)[0]}" for b, _ in found]
+            wrong = [b for b, _ in found if b["arg"] != cmd]
+            self.bound_info.setText(t("launcher.bound", list="   ·   ".join(parts)) if parts else t("launcher.unbound"))
+            set_chip(self.bound_chip, not wrong and bool(found), t("launcher.ok") if not wrong and found
+                     else t("launcher.other"))
+            self.btn_use.setObjectName("Primary" if wrong or not found else "")
+            self.btn_use.style().unpolish(self.btn_use)
+            self.btn_use.style().polish(self.btn_use)

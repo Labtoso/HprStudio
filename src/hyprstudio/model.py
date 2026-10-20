@@ -657,6 +657,31 @@ def lua_conflicts(main_text: str, binds: list) -> list:
     return [i for i, c in lua_bind_combos(main_text) if c in mine]
 
 
+LAUNCHERS = ("rofi", "wofi", "fuzzel", "hyprlauncher", "tofi", "anyrun", "walker", "bemenu-run", "dmenu_run",
+             "ulauncher", "nwg-drawer", "albert", "sherlock", "vicinae", "hyprshell")
+
+
+def is_launcher_cmd(cmd: str) -> bool:
+    first = (cmd or "").strip().split(" ", 1)[0]
+    return Path(first).name in LAUNCHERS
+
+
+def launcher_binds(hdir: Path, own: list) -> list:
+    """Kürzel, die einen Launcher starten: [(bind, "own"|"config")].
+    "config" = steht in hyprland.lua/.conf und wird nicht schon von einem eigenen Kürzel überdeckt."""
+    out = [(b, "own") for b in own if b["action"] == "exec" and is_launcher_cmd(b["arg"])]
+    mine = {combo(b["mods"], b["key"]) for b in own if bind_ok(b)}
+    fmt = hypr_format(hdir)
+    main = hdir / f"hyprland.{fmt}" if fmt else None
+    if main and main.is_file():
+        text = main.read_text(encoding="utf-8", errors="replace")
+        found, _ = import_lua(text) if fmt == "lua" else import_conf(text)
+        for b in found:
+            if b["action"] == "exec" and is_launcher_cmd(b["arg"]) and combo(b["mods"], b["key"]) not in mine:
+                out.append((b, "config"))
+    return out
+
+
 def comment_conflicts(hdir: Path, binds: list, log) -> int:
     main = hdir / "hyprland.lua"
     if not main.is_file():

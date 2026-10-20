@@ -44,6 +44,13 @@ def qss(accent: str) -> str:
     QComboBox::drop-down {{ border: none; width: 22px; }}
     QComboBox QAbstractItemView {{ background: {SURFACE2}; border: 1px solid {BORDER}; border-radius: 8px;
                                    selection-background-color: {accent}; outline: none; padding: 4px; }}
+    QMenu {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 12px; padding: 6px; color: {TEXT}; }}
+    QMenu::item {{ padding: 7px 22px 7px 14px; border-radius: 8px; background: transparent; }}
+    QMenu::item:selected {{ background: {accent}; color: #ffffff; }}
+    QMenu::item:disabled {{ color: {MUTED}; }}
+    QMenu::separator {{ height: 1px; background: {BORDER}; margin: 5px 8px; }}
+    QMenu::section {{ color: {MUTED}; padding: 6px 14px 2px 14px; font-weight: 600; }}
+    QMenu::indicator {{ width: 14px; height: 14px; margin-left: 6px; }}
     #PopupCard {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 14px; }}
     QListWidget#PopList {{ background: transparent; border: none; outline: none; }}
     QListWidget#PopList::item {{ border-radius: 8px; padding: 5px 8px; }}

@@ -419,14 +419,71 @@ class PaperEditor(QtWidgets.QWidget):
         self._mark()
 
 
+class PicJob(QtCore.QThread):
+    """Vorschaubilder nacheinander laden."""
+    got = Signal(str, bytes)
+
+    def __init__(self, items, parent=None):
+        super().__init__(parent)
+        self.items = items
+
+    def run(self):
+        for key, url in self.items:
+            if self.isInterruptionRequested():
+                return
+            try:
+                self.got.emit(key, online._get(url, 20))
+            except Exception:  # noqa: BLE001 – fehlendes Vorschaubild ist egal
+                pass
+
+
+def _pic(data: bytes, w: int, h: int) -> QtGui.QPixmap:
+    img = QtGui.QImage()
+    img.loadFromData(data)
+    pm = QtGui.QPixmap(w, h)
+    pm.fill(QtGui.QColor(0, 0, 0, 0))
+    if img.isNull():
+        return pm
+    p = QtGui.QPainter(pm)
+    p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
+    clip = QtGui.QPainterPath()
+    clip.addRoundedRect(QtCore.QRectF(0, 0, w, h), 8, 8)
+    p.setClipPath(clip)
+    p.fillRect(QtCore.QRectF(0, 0, w, h), QtGui.QColor("#e9edf2"))
+    s = min(w / img.width(), h / img.height())
+    dw, dh = img.width() * s, img.height() * s
+    p.drawImage(QtCore.QRectF((w - dw) / 2, (h - dh) / 2, dw, dh), img)
+    p.end()
+    return pm
+
+
+def _clear(lay: QtWidgets.QLayout):
+    while lay.count():
+        w = lay.takeAt(0).widget()
+        if w:
+            w.hide()
+            w.setParent(None)
+            w.deleteLater()
+
+
+SORTS = ("rec", "high", "new", "down")
+
+
 class CursorEditor(QtWidgets.QWidget):
-    """Mauszeiger: suchen, installierte wählen, neue aus dem Netz installieren, Größe, auch für GTK-Apps."""
+    """Mauszeiger: suchen, installierte wählen, neue aus dem Netz installieren (Empfohlen = GitHub-Releases,
+    sonst KDE-Store-Katalog sortiert nach Bewertung, neueste oder Downloads), Größe, auch für GTK-Apps."""
 
     def __init__(self, win):
         super().__init__()
         self.win = win
         self.job = None
+        self.fetch = None
+        self.pics = None
+        self.gen = 0
+        self.page_no, self.total, self.store_items = 0, 0, []
         self.state = {}
+        self.segs = []
         self.btn_apply = _action(True)
         self.btn_apply.clicked.connect(self.apply)
         self.actions = [self.btn_apply]
@@ -435,8 +492,12 @@ class CursorEditor(QtWidgets.QWidget):
         self.search = QtWidgets.QLineEdit()
         self.search.setClearButtonEnabled(True)
         self.search.setMinimumHeight(40)
-        self.search.textChanged.connect(self._filter)
+        self.search.textChanged.connect(self._search_changed)
         lay.addWidget(self.search)
+        self._search_timer = QtCore.QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(500)
+        self._search_timer.timeout.connect(self.reload_store)
 
         # Installiert
         self.inst_card = Card("cur.title", self)
@@ -446,7 +507,7 @@ class CursorEditor(QtWidgets.QWidget):
         card_header(self.inst_card, self.btn_refresh, self.btn_open)
         self.list = QtWidgets.QListWidget()
         self.list.setObjectName("ModList")
-        self.list.setMinimumHeight(220)
+        self.list.setMinimumHeight(200)
         self.list.currentItemChanged.connect(self._picked)
         self.inst_card.layout().addWidget(self.list)
         grid = QtWidgets.QGridLayout()
@@ -477,36 +538,28 @@ class CursorEditor(QtWidgets.QWidget):
 
         # Online installieren
         self.web_card = Card("cur.online", self)
-        self.rows = {}
-        for e in online.CURSORS:
-            row = QtWidgets.QFrame()
-            row.setObjectName("BindRow")
-            rl = QtWidgets.QHBoxLayout(row)
-            rl.setContentsMargins(14, 8, 10, 8)
-            rl.setSpacing(10)
-            name = QtWidgets.QLabel(e[1])
-            name.setStyleSheet("font-weight:600; background:transparent;")
-            src = QtWidgets.QLabel("github.com/" + e[2].split("github.com/")[1].split("/releases")[0])
-            src.setObjectName("RowLabel")
-            chip = QtWidgets.QLabel()
-            btn = _btn(True)
-            btn.setMinimumWidth(120)
-            btn.clicked.connect(lambda _=False, x=e: self._install(x))
-            rl.addWidget(name)
-            rl.addSpacing(6)
-            rl.addWidget(src, 1)
-            rl.addWidget(chip)
-            rl.addWidget(btn)
-            self.web_card.layout().addWidget(row)
-            self.rows[e[0]] = (row, chip, btn, e)
-        self.no_hit = QtWidgets.QLabel()
-        self.no_hit.setObjectName("RowLabel")
-        self.web_card.layout().addWidget(self.no_hit)
+        from .widgets import Segmented
+        self.sort = Segmented(SORTS, prefix="cur.sort.")
+        self.sort.changed.connect(self._sort_changed)
+        self.segs.append(self.sort)
+        card_header(self.web_card, self.sort)
+        self.web_state = QtWidgets.QLabel()
+        self.web_state.setObjectName("RowLabel")
+        self.web_card.layout().addWidget(self.web_state)
+        self.rows_lay = QtWidgets.QVBoxLayout()
+        self.rows_lay.setSpacing(8)
+        self.web_card.layout().addLayout(self.rows_lay)
+        self.btn_more = _btn()
+        self.btn_more.clicked.connect(lambda: self.reload_store(more=True))
+        self.web_card.layout().addWidget(self.btn_more, 0, Qt.AlignmentFlag.AlignHCenter)
         lay.addWidget(self.web_card)
         lay.addStretch()
+        self.sort_key = win.cfg.get("cursor_sort", "rec") if win.cfg.get("cursor_sort") in SORTS else "rec"
 
+    # ----- Laden -----
     def refresh(self):
         self.load()
+        self.show_online()
 
     def load(self):
         hs = self.win.hypr_page.state
@@ -529,56 +582,181 @@ class CursorEditor(QtWidgets.QWidget):
         self.list.blockSignals(False)
         self.size.setValue(max(8, min(32, hs["cursor_size"] // 2)))
         self.size_val.setText(f"{self.size.value() * 2} px")
-        self._rows()
-        self._filter()
+        self._filter_installed()
 
-    def _rows(self):
-        busy = self.job is not None
-        for row, chip, btn, e in self.rows.values():
-            inst = online.installed_cursor(e)
-            set_chip(chip, True, t("cur.installed"))
-            chip.setVisible(inst)
-            btn.setVisible(not inst)
-            btn.setText(t("cur.install"))
-            btn.setEnabled(not busy)
-
-    def _filter(self, *_):
+    def _filter_installed(self):
         q = self.search.text().strip().lower()
         for i in range(self.list.count()):
             it = self.list.item(i)
             name = (it.data(Qt.ItemDataRole.UserRole) or "").lower()
             it.setHidden(bool(q) and bool(name) and q not in name)
-        hits = 0
-        for row, _, _, e in self.rows.values():
-            ok = not q or q in e[1].lower() or any(q in n.lower() for n in e[3])
-            row.setVisible(ok)
-            hits += ok
-        self.no_hit.setText(t("cur.nomatch"))
-        self.no_hit.setVisible(hits == 0)
 
-    def _install(self, e):
+    def _search_changed(self, *_):
+        self._filter_installed()
+        if self.sort_key == "rec":
+            self.show_online()
+        else:
+            self._search_timer.start()
+
+    def _sort_changed(self, key):
+        self.sort_key = key
+        self.win.cfg["cursor_sort"] = key
+        self.win.save_later()
+        self.show_online()
+
+    # ----- Online -----
+    def _row(self, title: str, meta: str, key: str) -> tuple:
+        row = QtWidgets.QFrame()
+        row.setObjectName("BindRow")
+        rl = QtWidgets.QHBoxLayout(row)
+        rl.setContentsMargins(10, 8, 10, 8)
+        rl.setSpacing(12)
+        pic = QtWidgets.QLabel()
+        pic.setFixedSize(112, 64)
+        rl.addWidget(pic)
+        col = QtWidgets.QVBoxLayout()
+        col.setSpacing(2)
+        name = QtWidgets.QLabel(title)
+        name.setStyleSheet("font-weight:600; background:transparent;")
+        sub = QtWidgets.QLabel(meta)
+        sub.setObjectName("RowLabel")
+        col.addStretch()
+        col.addWidget(name)
+        col.addWidget(sub)
+        col.addStretch()
+        rl.addLayout(col, 1)
+        chip = QtWidgets.QLabel()
+        rl.addWidget(chip)
+        btn = _btn(True)
+        btn.setMinimumWidth(130)
+        btn.setText(t("cur.install"))
+        btn.setEnabled(self.job is None)
+        rl.addWidget(btn)
+        self.rows_lay.addWidget(row)
+        self.row_pics[key] = pic
+        return row, chip, btn
+
+    def show_online(self):
+        self.gen += 1
+        if self.pics:
+            self.pics.requestInterruption()
+        self.sort.select(self.sort_key)
+        _clear(self.rows_lay)
+        self.row_pics = {}
+        self.btn_more.hide()
+        if self.sort_key != "rec":
+            self.store_items, self.page_no, self.total = [], 0, 0
+            self.reload_store()
+            return
+        q = self.search.text().strip().lower()
+        hits = 0
+        for e in online.CURSORS:
+            if q and q not in e[1].lower() and not any(q in n.lower() for n in e[3]):
+                continue
+            hits += 1
+            src = "github.com/" + e[2].split("github.com/")[1].split("/releases")[0]
+            row, chip, btn = self._row(e[1], src, e[0])
+            row.layout().itemAt(0).widget().hide()  # keine Vorschau für GitHub-Releases
+            inst = online.installed_cursor(e)
+            set_chip(chip, True, t("cur.installed"))
+            chip.setVisible(inst)
+            btn.setVisible(not inst)
+            btn.clicked.connect(lambda _=False, x=e: self._install(x[1], lambda log, x=x: online.install_cursor(x, log)))
+        self.web_state.setText(t("cur.nomatch"))
+        self.web_state.setVisible(hits == 0)
+
+    def reload_store(self, more: bool = False):
+        if self.sort_key == "rec":
+            return
+        if not more:
+            self.gen += 1
+            _clear(self.rows_lay)
+            self.row_pics, self.store_items, self.page_no = {}, [], 0
+        else:
+            self.page_no += 1
+        gen, q, sort, page = self.gen, self.search.text(), self.sort_key, self.page_no
+        self.web_state.setText(t("cur.loading_list"))
+        self.web_state.show()
+        self.btn_more.hide()
+        self.fetch = Job(lambda _log: online.store_search(q, sort, page), self)
+        self.fetch.result.connect(lambda r, g=gen: self._store_loaded(g, r))
+        self.fetch.start()
+
+    def _store_loaded(self, gen, r):
+        if gen != self.gen:
+            return
+        if isinstance(r, Exception):
+            self.web_state.setText(t("cur.offline"))
+            return
+        items, self.total = r
+        self.web_state.setVisible(not items and not self.store_items)
+        self.web_state.setText(t("cur.nomatch"))
+        pics = []
+        for it in items:
+            date = ".".join(reversed(it["changed"].split("-"))) if it["changed"] else ""
+            meta = t("cur.meta", score=f"{it['score'] / 10:.1f}", dl=f"{it['downloads']:,}".replace(",", "."),
+                     date=date)
+            row, chip, btn = self._row(it["name"], meta, it["id"])
+            chip.hide()
+            btn.clicked.connect(lambda _=False, x=it, b=btn: self._store_click(x, b))
+            if it["preview"]:
+                pics.append((it["id"], it["preview"]))
+        self.store_items += items
+        self.btn_more.setText(t("cur.more"))
+        self.btn_more.setVisible((self.page_no + 1) * 10 < self.total and bool(items))
+        if pics:
+            self.pics = PicJob(pics, self)
+            self.pics.got.connect(lambda k, data, g=gen: self._pic(g, k, data))
+            self.pics.start()
+
+    def _pic(self, gen, key, data):
+        lb = self.row_pics.get(key)
+        if gen == self.gen and lb is not None:
+            lb.setPixmap(_pic(data, 112, 64))
+
+    def _store_click(self, item, btn):
+        if len(item["files"]) == 1:
+            i = item["files"][0][0]
+            self._install(item["name"], lambda log: online.store_install(item, i, log))
+            return
+        m = QtWidgets.QMenu(self)  # mehrere Varianten (Farben, Größen) → auswählen
+        for i, name, size in item["files"]:
+            a = m.addAction(f"{name}   ·  {size} KB" if size else name)
+            a.triggered.connect(lambda _=False, i=i: self._install(item["name"],
+                                                                   lambda log: online.store_install(item, i, log)))
+        m.exec(btn.mapToGlobal(QtCore.QPoint(0, btn.height() + 4)))
+
+    def _install(self, label, fn):
         if self.job:
             return
         self.win.log("")
-        self.win.set_status(t("dl.loading", name=e[1]))
-        self.job = Job(lambda log: online.install_cursor(e, log), self)
-        self._rows()
+        self.win.set_status(t("dl.loading", name=label))
+        self.job = Job(fn, self)
+        self._busy(True)
         self.job.line.connect(self.win.log)
-        self.job.result.connect(lambda r, x=e: self._installed(x, r))
+        self.job.result.connect(lambda r, x=label: self._installed(x, r))
         self.job.start()
 
-    def _installed(self, e, r):
+    def _busy(self, on: bool):
+        for i in range(self.rows_lay.count()):
+            w = self.rows_lay.itemAt(i).widget()
+            for b in w.findChildren(QtWidgets.QPushButton) if w else []:
+                b.setEnabled(not on)
+
+    def _installed(self, label, r):
         self.job = None
+        self._busy(False)
         if isinstance(r, Exception):
             self.win.log(f"Fehler: {r}")
             self.win.set_status(t("dl.fail", err=r))
-            self._rows()
             return
         self.load()
+        if self.sort_key == "rec":
+            self.show_online()
         for i in range(self.list.count()):  # neues Thema gleich auswählen
-            if self.list.item(i).data(Qt.ItemDataRole.UserRole) == (r[0] if r else e[3][0]):
+            if r and self.list.item(i).data(Qt.ItemDataRole.UserRole) == r[0]:
                 self.list.setCurrentRow(i)
-        self.win.set_status(t("cur.got", name=e[1]))
+        self.win.set_status(t("cur.got", name=label) if r else t("cur.nothing_new", name=label))
 
     def _picked(self, cur, _prev):
         if cur and cur.data(Qt.ItemDataRole.UserRole):
@@ -601,13 +779,16 @@ class CursorEditor(QtWidgets.QWidget):
     def retranslate(self):
         self.inst_card.retranslate()
         self.web_card.retranslate()
+        self.sort.retranslate()
         self.search.setPlaceholderText(t("cur.search"))
         self.btn_refresh.setText(t("bak.refresh"))
         self.btn_open.setText(t("cur.open"))
+        self.btn_more.setText(t("cur.more"))
         self.l_size.setText(t("cursor_size"))
         self.l_gtk.setText(t("cur.gtk"))
         self.btn_apply.setText(t("apply"))
         self.load()
+        self.sort.select(self.sort_key)
 
     def apply_theme(self, accent):
         self.gtk.accent = accent

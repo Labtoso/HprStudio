@@ -141,11 +141,19 @@ def install_cursor(entry, log) -> list:
             (dest / n / "index.theme").write_text(f"[Icon Theme]\nName={n}\n", encoding="utf-8")
             log(f"→ {dest / n}  (Testmodus)")
         return list(names)
-    data = _get(url)
+    return _install_archive(_get(url), url.rsplit("/", 1)[-1], log)
+
+
+def _install_archive(data: bytes, filename: str, log) -> list:
+    dest = icons_dir()
+    dest.mkdir(parents=True, exist_ok=True)
     new = []
     with tempfile.TemporaryDirectory(prefix="hyprstudio-") as tmp:
-        safe_extract(data, url.rsplit("/", 1)[-1], Path(tmp))
-        for d in find_themes(Path(tmp)):
+        safe_extract(data, filename, Path(tmp))
+        themes = find_themes(Path(tmp))
+        if not themes:
+            log(f"Kein Mauszeiger-Thema in {filename} gefunden")
+        for d in themes:
             target = dest / d.name
             if target.exists():
                 log(f"= {target} (schon da)")
@@ -154,6 +162,60 @@ def install_cursor(entry, log) -> list:
             new.append(d.name)
             log(f"→ {target}")
     return new
+
+
+# ---------- Mauszeiger-Katalog (KDE Store / pling, wie „Neue Mauszeiger holen“ in KDE) ----------
+
+STORE = "https://api.kde-look.org/ocs/v1/content/data"
+STORE_CAT = 107  # „Cursors“
+STORE_SORTS = ("high", "new", "down")  # beste Bewertung, neueste, meiste Downloads
+ARCHIVE_EXT = (".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".tar", ".zip")
+
+
+def _store_item(c: dict) -> dict:
+    files = []
+    for i in range(1, 60):
+        name = c.get(f"downloadname{i}") or ""
+        if not c.get(f"downloadlink{i}"):
+            continue
+        if name.lower().endswith(ARCHIVE_EXT):
+            files.append((i, name, int(c.get(f"downloadsize{i}") or 0)))
+    try:
+        dl = int(c.get("downloads") or 0)
+    except ValueError:
+        dl = 0
+    return {"id": str(c.get("id", "")), "name": str(c.get("name", "")).strip(), "score": int(c.get("score") or 50),
+            "downloads": dl, "changed": str(c.get("changed") or c.get("created") or "")[:10],
+            "preview": c.get("smallpreviewpic1") or c.get("previewpic1") or "", "files": files,
+            "page": c.get("detailpage") or ""}
+
+
+def store_search(query: str = "", sort: str = "high", page: int = 0) -> tuple:
+    """([Eintrag], Gesamtzahl) – 10 pro Seite; nur Einträge mit Archiv zum Herunterladen."""
+    from urllib.parse import urlencode
+    params = {"categories": STORE_CAT, "sortmode": sort if sort in STORE_SORTS else "high", "page": page,
+              "pagesize": 10, "format": "json"}
+    if query.strip():
+        params["search"] = query.strip()
+    d = json.loads(_get(f"{STORE}?{urlencode(params)}", 30))
+    items = [_store_item(c) for c in d.get("data") or [] if isinstance(c, dict)]
+    return [x for x in items if x["files"]], int(d.get("totalitems") or 0)
+
+
+def store_install(item: dict, index: int, log) -> list:
+    """Download-Link ist nur kurz gültig → frisch holen, dann wie ein Release-Archiv installieren."""
+    name = next((n for i, n, _ in item["files"] if i == index), "")
+    log(f"↓ {item['name']}: {name}")
+    if model.DRY:
+        n = Path(name).name.split(".")[0] or item["name"]
+        d = icons_dir() / n
+        (d / "cursors").mkdir(parents=True, exist_ok=True)
+        (d / "index.theme").write_text(f"[Icon Theme]\nName={n}\n", encoding="utf-8")
+        log(f"→ {d}  (Testmodus)")
+        return [n]
+    d = json.loads(_get(f"{STORE}/{item['id']}?format=json", 30))["data"]
+    c = d[0] if isinstance(d, list) else d
+    return _install_archive(_get(c[f"downloadlink{index}"]), name, log)
 
 
 # ---------- Hintergrundbilder ----------
