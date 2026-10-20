@@ -1,8 +1,13 @@
-"""Schriftarten mit einem Klick installieren: Nerd Fonts von GitHub nach ~/.local/share/fonts (ohne root). Ohne Qt."""
+"""Schriftarten mit einem Klick installieren: Nerd Fonts von GitHub und Comic Sans MS (Microsoft Core Fonts)
+nach ~/.local/share/fonts (ohne root). Ohne Qt."""
 
 import io
+import shutil
+import struct
 import subprocess
+import sys
 import tarfile
+import tempfile
 import urllib.request
 from pathlib import Path
 
@@ -12,8 +17,13 @@ from . import model
 URL = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/{}.tar.xz"
 FONT_EXT = (".ttf", ".otf")
 
-# (Archivname bei nerd-fonts, Schriftfamilie nach der Installation)
+# Microsofts frei verteilte „Core Fonts for the Web“ (Quelle wie beim Arch-Paket ttf-ms-fonts):
+# selbstentpackende .exe mit CAB-Archiv (LZX) → nur die .ttf daraus, nichts wird ausgeführt
+COREFONTS = {"ComicSansMS": "https://downloads.sourceforge.net/corefonts/comic32.exe"}
+
+# (Archivname bei nerd-fonts bzw. COREFONTS, Schriftfamilie nach der Installation)
 CATALOG = [
+    ("ComicSansMS", "Comic Sans MS"),
     ("JetBrainsMono", "JetBrainsMono Nerd Font"), ("FiraCode", "FiraCode Nerd Font"),
     ("Hack", "Hack Nerd Font"), ("CascadiaCode", "CaskaydiaCove Nerd Font"),
     ("CascadiaMono", "CaskaydiaMono Nerd Font"), ("Meslo", "MesloLGS Nerd Font"),
@@ -59,14 +69,61 @@ def extract(data: bytes, dest: Path) -> list:
     return out
 
 
+def find_cab(data: bytes) -> bytes:
+    """Das CAB-Archiv aus einer selbstentpackenden .exe schneiden (echter Kopf: reserviert = 0, Version 1.3)."""
+    i = -1
+    while True:
+        i = data.find(b"MSCF", i + 1)
+        if i < 0:
+            raise ValueError("kein CAB-Archiv gefunden")
+        if data[i + 4:i + 8] == bytes(4) and data[i + 24:i + 26] == bytes((3, 1)):
+            size, = struct.unpack_from("<I", data, i + 8)
+            return data[i:i + size]
+
+
+def cab_tool() -> list | None:
+    """Entpacker für CAB/LZX: bsdtar (libarchive, auf Arch immer da), sonst cabextract oder 7z."""
+    if shutil.which("bsdtar"):
+        return ["bsdtar", "-xf", "{cab}", "-C", "{out}"]
+    if shutil.which("cabextract"):
+        return ["cabextract", "-q", "-d", "{out}", "{cab}"]
+    for z in ("7z", "7za"):
+        if shutil.which(z):
+            return [z, "x", "-y", "-o{out}", "{cab}"]
+    if sys.platform == "win32" and shutil.which("tar"):  # Windows-tar ist bsdtar (nur Testmodus)
+        return ["tar", "-xf", "{cab}", "-C", "{out}"]
+    return None
+
+
+def extract_cab(data: bytes, dest: Path) -> list:
+    tool = cab_tool()
+    if not tool:
+        raise RuntimeError("bsdtar/cabextract fehlt (Paket libarchive oder cabextract installieren)")
+    dest.mkdir(parents=True, exist_ok=True)
+    out = []
+    with tempfile.TemporaryDirectory() as tmp:
+        cab, unpacked = Path(tmp) / "fonts.cab", Path(tmp) / "out"
+        cab.write_bytes(find_cab(data))
+        unpacked.mkdir()
+        cmd = [a.replace("{cab}", str(cab)).replace("{out}", str(unpacked)) for a in tool]
+        subprocess.run(cmd, capture_output=True, timeout=60, check=True)
+        for f in unpacked.rglob("*"):
+            if f.is_file() and f.suffix.lower() in FONT_EXT:
+                target = dest / f.name
+                if not target.exists():
+                    shutil.copyfile(f, target)
+                out.append(target)
+    return out
+
+
 def install(archive: str, log) -> list:
     """Archiv laden, entpacken, Font-Cache erneuern. Gibt die Schriftdateien zurück."""
-    url = URL.format(archive)
+    url = COREFONTS.get(archive) or URL.format(archive)
     log(f"↓ {url}")
     req = urllib.request.Request(url, headers={"User-Agent": f"HyprStudio/{hyprstudio.__version__}"})
     with urllib.request.urlopen(req, timeout=180) as r:
         data = r.read()
-    files = extract(data, fonts_dir() / archive)
+    files = extract_cab(data, fonts_dir() / archive) if archive in COREFONTS else extract(data, fonts_dir() / archive)
     log(f"→ {fonts_dir() / archive} ({len(files)})")
     if not model.DRY:
         try:
