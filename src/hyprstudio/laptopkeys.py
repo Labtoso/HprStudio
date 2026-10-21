@@ -47,28 +47,38 @@ def _own_old_binds(hdir: Path, fmt: str, log) -> None:
         log(f"Laptop-Tasten aus {f.name} in {file_for(hdir, fmt).name} verschoben")
 
 
-def write(hdir: Path, s: dict, log) -> bool:
-    """Datei schreiben, einmal einbinden, gleiche Tasten in der Hauptdatei auskommentieren."""
+def include_extra(hdir: Path, stem: str, content_fn, label: str, log) -> str | None:
+    """Kleine Zusatzdatei hyprstudio_<stem>.lua/.conf schreiben und einmal in hyprland.lua/.conf einbinden.
+    Gibt das Format zurück (oder None, wenn es keine Hauptdatei gibt). Der übrige Look bleibt unangetastet."""
     fmt = model.hypr_format(hdir)
     main = hdir / f"hyprland.{fmt}" if fmt else None
     if not (main and main.is_file()):
-        log("Laptop-Tasten: keine hyprland.lua/.conf gefunden")
-        return False
-    target = file_for(hdir, fmt)
-    new = content(s, fmt)
+        log(f"{label}: keine hyprland.lua/.conf gefunden")
+        return None
+    target = hdir / f"hyprstudio_{stem}.{fmt}"
+    new = content_fn(fmt)
     if not target.is_file() or target.read_text(encoding="utf-8", errors="replace") != new:
         target.write_text(new, encoding="utf-8")
         log(f"→ {target}")
     text = main.read_text(encoding="utf-8", errors="replace")
-    line, c = INCLUDE[fmt]
+    c = "--" if fmt == "lua" else "#"
+    line = f'require("hyprstudio_{stem}")' if fmt == "lua" else f"source = ~/.config/hypr/hyprstudio_{stem}.conf"
     if line not in (ln.strip() for ln in text.splitlines()):
         bak = main.with_name(main.name + ".hyprstudio-original")
         if not bak.exists():
             shutil.copy2(main, bak)
             log(f"Sicherung: {bak}")
         with open(main, "a", encoding="utf-8") as fh:
-            fh.write(("" if text.endswith("\n") or not text else "\n") + f"\n{c} {MARK} – Laptop-Tasten\n{line}\n")
+            fh.write(("" if text.endswith("\n") or not text else "\n") + f"\n{c} {MARK} – {label}\n{line}\n")
         log(f"+ {main}: {line}")
+    return fmt
+
+
+def write(hdir: Path, s: dict, log) -> bool:
+    """Datei schreiben, einmal einbinden, gleiche Tasten in der Hauptdatei auskommentieren."""
+    fmt = include_extra(hdir, "laptop", lambda f: content(s, f), "Laptop-Tasten", log)
+    if not fmt:
+        return False
     model.manage_laptop_keys(hdir, s, log)
     _own_old_binds(hdir, fmt, log)
     return True
