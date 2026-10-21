@@ -247,6 +247,22 @@ def apply_env(mode: str, cfg_home: Path, log) -> bool:
                                     "Hell/Dunkel", log) is not None
 
 
+def apply_services(mode: str, cfg_home: Path, log) -> None:
+    """Hintergrund-Dienste (GTK-Portal mit „Öffnen mit“- und Datei-Dialogen) laufen über systemd und sehen die
+    Hyprland-Umgebung nicht: Thema in ~/.config/environment.d (gilt ab jeder Anmeldung) und sofort weitergeben."""
+    theme = "Adwaita:dark" if mode == "dark" else "Adwaita"
+    qt = qt_platform_theme()
+    pairs = [f"GTK_THEME={theme}"] + ([f"QT_QPA_PLATFORMTHEME={qt}"] if qt else [])
+    f = cfg_home / "environment.d" / "60-hyprstudio-look.conf"
+    text = f"# {MARK} – Hell/Dunkel auch für Dienste und Portal-Dialoge\n" + "\n".join(pairs) + "\n"
+    if not f.is_file() or f.read_text(encoding="utf-8") != text:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8")
+        log(f"→ {f}")
+    if model.DRY or shutil.which("dbus-update-activation-environment"):
+        model.run(["dbus-update-activation-environment", "--systemd", *pairs], log, quiet=True)
+
+
 def apply_flatpak(mode: str, log) -> None:
     """Flatpak-Apps sehen die Umgebung von außen nicht – dort GTK_THEME einzeln setzen."""
     if not (model.DRY or shutil.which("flatpak")):
@@ -270,6 +286,7 @@ def apply(mode: str, cfg_home: Path, log) -> bool:
     write_portals_conf(cfg_home, log)
     apply_env(mode, cfg_home, log)
     apply_flatpak(mode, log)
+    apply_services(mode, cfg_home, log)
     if model.DRY or shutil.which("systemctl"):  # laufende Apps bekommen den Wechsel sofort übers Portal mit
         model.run(["systemctl", "--user", "try-restart", "xdg-desktop-portal.service",
                    "xdg-desktop-portal-gtk.service"], log, quiet=True)

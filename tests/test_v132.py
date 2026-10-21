@@ -41,6 +41,16 @@ class DarkEverywhere(unittest.TestCase):
             self.assertEqual((home / "hypr" / "hyprland.lua").read_text(encoding="utf-8").count('require("hyprstudio_look")'), 1)
         self.assertIn("env = GTK_THEME,Adwaita\n", appearance.env_content("light", "", "conf"))
 
+    def test_services_get_theme(self):
+        """„Öffnen mit“- und Datei-Dialoge kommen vom GTK-Portal (systemd-Dienst) → environment.d."""
+        with tempfile.TemporaryDirectory() as d:
+            appearance.apply_services("dark", Path(d), lambda *_: None)
+            text = (Path(d) / "environment.d" / "60-hyprstudio-look.conf").read_text(encoding="utf-8")
+            self.assertIn("GTK_THEME=Adwaita:dark\n", text)
+            appearance.apply_services("light", Path(d), lambda *_: None)
+            text = (Path(d) / "environment.d" / "60-hyprstudio-look.conf").read_text(encoding="utf-8")
+            self.assertIn("GTK_THEME=Adwaita\n", text)
+
     @unittest.skipIf(lupa is None, "lupa nicht installiert")
     def test_lua_runs(self):
         rt = lupa.LuaRuntime()

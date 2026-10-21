@@ -373,6 +373,7 @@ class MainWindow(QtWidgets.QWidget):
         if mode in appearance.MODES:
             appearance.write_portals_conf(model.config_home(), self.log)
             appearance.apply_env(mode, model.config_home(), self.log)
+            appearance.apply_services(mode, model.config_home(), self.log)
 
     def _auto_sysactions(self):
         """Herunterfahren/Neustart … in allen Launchern (an, solange der Schalter nicht aus ist)."""
