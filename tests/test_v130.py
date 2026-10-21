@@ -29,7 +29,7 @@ class SystemCommands(unittest.TestCase):
     def test_off_hides_without_deleting(self):
         sysactions.apply(True, lambda *_: None)
         sysactions.apply(False, lambda *_: None)
-        self.assertEqual(len(list(Path(self.tmp.name).glob("*.desktop"))), 8)
+        self.assertEqual(len(list(Path(self.tmp.name).glob("*.desktop"))), 9)
         self.assertEqual(applauncher.load_apps([Path(self.tmp.name)]), [])
 
     def test_lock_only_with_hyprlock(self):

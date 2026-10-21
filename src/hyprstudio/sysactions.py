@@ -15,8 +15,10 @@ ACTIONS = [
      "shutdown;power off;poweroff;turn off;herunterfahren;ausschalten;abschalten;"),
     ("reboot", "systemctl reboot", "system-reboot", [("en", "Restart"), ("de", "Neustart")],
      "restart;reboot;neustart;neu starten;"),
-    ("logout", "hyprctl dispatch exit", "system-log-out", [("en", "Log out"), ("de", "Abmelden")],
-     "log out;logout;sign out;abmelden;"),
+    # ganz abmelden bis zum Anmeldebildschirm (SDDM): die ganze Sitzung beenden, nicht nur sperren
+    ("logout", 'sh -c "loginctl terminate-session self || hyprctl dispatch exit"', "system-log-out",
+     [("en", "Logout"), ("de", "Abmelden"), ("de2", "Ausloggen")],
+     "logout;log out;sign out;abmelden;ausloggen;abmeldung;"),
     ("lock", "hyprlock", "system-lock-screen", [("en", "Lock screen"), ("de", "Sperren")],
      "lock;lock screen;sperren;bildschirm sperren;"),
 ]
