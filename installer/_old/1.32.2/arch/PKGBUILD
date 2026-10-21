@@ -1,0 +1,28 @@
+# Maintainer: LabtosoStudios
+pkgname=labtoso-hyprstudio
+pkgver=1.32.2
+pkgrel=1
+pkgdesc="Hypr Studio – style Hyprland and Waybar with a few clicks"
+arch=('any')
+url="https://github.com/Labtoso/HyprStudio"
+license=('MIT')
+depends=('python' 'pyside6' 'brightnessctl' 'playerctl')
+optdepends=('hyprland: window manager' 'wireplumber: volume keys (wpctl)' 'waybar: status bar' 'rofi: Launcher' 'wofi: Launcher' 'fuzzel: Launcher' 'kitty: Terminal' 'ttf-jetbrains-mono-nerd: icons')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  install -d "$pkgdir/usr/lib/labtoso-hyprstudio"
+  cp -r src/hyprstudio "$pkgdir/usr/lib/labtoso-hyprstudio/"
+  find "$pkgdir/usr/lib/labtoso-hyprstudio" -name '__pycache__' -prune -exec rm -rf {} +
+  install -Dm755 packaging/hypr-studio "$pkgdir/usr/bin/hypr-studio"
+  install -Dm755 packaging/l-launcher "$pkgdir/usr/bin/l-launcher"
+  install -Dm644 packaging/de.labtosostudios.hyprstudio.desktop \
+    "$pkgdir/usr/share/applications/de.labtosostudios.hyprstudio.desktop"
+  install -Dm644 src/hyprstudio/assets/hyprstudio.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/de.labtosostudios.hyprstudio.svg"
+  for s in 16 32 48 64 128 256; do
+    install -Dm644 "packaging/icons/$s.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/de.labtosostudios.hyprstudio.png"
+  done
+}

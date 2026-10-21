@@ -1,6 +1,6 @@
 # Maintainer: LabtosoStudios
 pkgname=labtoso-hyprstudio
-pkgver=1.32.1
+pkgver=1.32.2
 pkgrel=1
 pkgdesc="Hypr Studio – style Hyprland and Waybar with a few clicks"
 arch=('any')
