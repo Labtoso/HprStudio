@@ -248,6 +248,8 @@ def remove_include(hdir: Path, log) -> int:
                                        "source = ~/.config/hypr/hyprstudio.conf", 'require("hyprstudio_laptop")',
                                        "source = ~/.config/hypr/hyprstudio_laptop.conf",
                                        'require("hyprstudio_perf")', "source = ~/.config/hypr/hyprstudio_perf.conf",
+                                       'require("hyprstudio_look")', "source = ~/.config/hypr/hyprstudio_look.conf",
+                                       f"-- {model.MARK} – Hell/Dunkel", f"# {model.MARK} – Hell/Dunkel",
                                        f"-- {model.MARK} – Leistung", f"# {model.MARK} – Leistung",
                                        f"-- {model.MARK} – Laptop-Tasten", f"# {model.MARK} – Laptop-Tasten"))]
         if len(keep) != len(text.splitlines(keepends=True)):

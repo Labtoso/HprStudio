@@ -35,9 +35,9 @@ case "$ans" in
       [ -f "$f" ] || continue
       if grep -q "hyprstudio" "$f"; then
         cp "$f" "$f.before-uninstall"
-        sed -i -e "/^[#-]* *$MARK$/d" -e "/^[#-]* *$MARK – Laptop-Tasten$/d" -e "/^[#-]* *$MARK – Leistung$/d" \
-               -e '/^require("hyprstudio")$/d' -e '/^require("hyprstudio_laptop")$/d' -e '/^require("hyprstudio_perf")$/d' \
-               -e '\#^source = ~/.config/hypr/hyprstudio.conf$#d' -e '\#^source = ~/.config/hypr/hyprstudio_laptop.conf$#d' -e '\#^source = ~/.config/hypr/hyprstudio_perf.conf$#d' "$f"
+        sed -i -e "/^[#-]* *$MARK$/d" -e "/^[#-]* *$MARK – Laptop-Tasten$/d" -e "/^[#-]* *$MARK – Leistung$/d" -e "/^[#-]* *$MARK – Hell\/Dunkel$/d" \
+               -e '/^require("hyprstudio")$/d' -e '/^require("hyprstudio_laptop")$/d' -e '/^require("hyprstudio_perf")$/d' -e '/^require("hyprstudio_look")$/d' \
+               -e '\#^source = ~/.config/hypr/hyprstudio.conf$#d' -e '\#^source = ~/.config/hypr/hyprstudio_laptop.conf$#d' -e '\#^source = ~/.config/hypr/hyprstudio_perf.conf$#d' -e '\#^source = ~/.config/hypr/hyprstudio_look.conf$#d' "$f"
         echo "    Include removed: $f (copy: $f.before-uninstall)"
       fi
     done

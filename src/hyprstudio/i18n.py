@@ -379,6 +379,9 @@ TEXT["en"].update({'sec.perf': 'Performance', 'perf.title': 'Slow apps & crashes
 TEXT["de"].update({'perfl.portal': 'Desktop-Portal', 'perfl.swap': 'Arbeitsspeicher', 'perfl.power': 'Energieprofil', 'perfl.effects': 'Effekte', 'perfl.disk': 'Festplatte'})
 TEXT["en"].update({'perfl.portal': 'Desktop portal', 'perfl.swap': 'Memory', 'perfl.power': 'Power profile', 'perfl.effects': 'Effects', 'perfl.disk': 'Disk'})
 
+TEXT["de"].update({'look.portal_missing': 'Firefox, Chromium, Electron und GTK4-Apps brauchen das GTK-Portal für Dunkel', 'look.portal_install': 'GTK-Portal installieren'})
+TEXT["en"].update({'look.portal_missing': 'Firefox, Chromium, Electron and GTK4 apps need the GTK portal for dark mode', 'look.portal_install': 'Install GTK portal'})
+
 _lang = "en"
 
 

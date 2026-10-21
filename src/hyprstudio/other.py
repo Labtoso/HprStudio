@@ -232,7 +232,7 @@ class OtherPage(QtWidgets.QWidget):
         self.look_qt.setObjectName("RowLabel")
         self.look_qt_btn = QtWidgets.QPushButton()
         self.look_qt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.look_qt_btn.clicked.connect(lambda: self.install_keys(["qtdark"]))
+        self.look_qt_btn.clicked.connect(self._look_install)
         qrow.addWidget(self.look_qt)
         qrow.addWidget(self.look_qt_btn)
         qrow.addStretch()
@@ -480,11 +480,22 @@ class OtherPage(QtWidgets.QWidget):
         self.look_seg.select(mode)
         self.look_state.setText(t("look.active", name=t("look." + mode)))
         ok = packages.installed("qtdark")
-        self.look_qt.setText(t("look.qt_ok") if ok else t("look.qt_missing"))
-        self.look_qt_btn.setText(t("look.qt_install"))
-        self.look_qt_btn.setVisible(not ok)
+        portal = appearance.gtk_portal()
+        if not portal:  # ohne GTK-Portal bleiben Firefox, Chromium, Electron und GTK4-Apps hell
+            self.look_qt.setText(t("look.portal_missing"))
+            self.look_qt_btn.setText(t("look.portal_install"))
+        else:
+            self.look_qt.setText(t("look.qt_ok") if ok else t("look.qt_missing"))
+            self.look_qt_btn.setText(t("look.qt_install"))
+        self.look_qt_btn.setVisible(not (ok and portal))
         if ok and self.win.hypr_page.state.get("qt_theme") != appearance.qt_platform_theme():
             self.set_look(mode)  # z. B. gerade plasma-integration installiert → Hyprland-Umgebung nachziehen
+
+    def _look_install(self):
+        if not appearance.gtk_portal():
+            self.run_root(perf.portal_command(packages.manager()))
+        else:
+            self.install_keys(["qtdark"])
 
     def set_look(self, mode: str):
         self.win.log("")

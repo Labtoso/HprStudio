@@ -190,6 +190,71 @@ def apply_qtct(mode: str, cfg_home: Path, log) -> None:
         _update(cfg_home / tool / f"{tool}.conf", upd, log)
 
 
+# ---------- Portal, Umgebung, Flatpak (damit wirklich jede App dunkel wird) ----------
+# GTK4/libadwaita, Chromium, Electron und Firefox lesen Hell/Dunkel über das Desktop-Portal (Settings-Schnittstelle).
+# xdg-desktop-portal-hyprland bietet die nicht an → xdg-desktop-portal-gtk muss mitlaufen, und seit
+# xdg-desktop-portal 1.18 braucht es dafür eine Datei <XDG_CURRENT_DESKTOP>-portals.conf.
+PORTALS_CONF = f"""# {MARK} – Hell/Dunkel für alle Apps (Sonstiges › Hell / Dunkel)
+[preferred]
+default=hyprland;gtk
+org.freedesktop.impl.portal.Settings=gtk
+"""
+DBUS_ENV = "dbus-update-activation-environment --systemd --all"
+
+
+def write_portals_conf(cfg_home: Path, log) -> bool:
+    """hyprland-portals.conf anlegen; eine eigene, fremde Datei bleibt unangetastet."""
+    f = cfg_home / "xdg-desktop-portal" / "hyprland-portals.conf"
+    if f.is_file() and MARK not in f.read_text(encoding="utf-8", errors="replace"):
+        log(f"Eigene Portal-Einstellung bleibt: {f}")
+        return False
+    if not f.is_file() or f.read_text(encoding="utf-8") != PORTALS_CONF:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(PORTALS_CONF, encoding="utf-8")
+        log(f"→ {f}")
+    return True
+
+
+def gtk_portal() -> bool:
+    if model.DRY:
+        return True
+    return any(Path(p).exists() for p in ("/usr/lib/xdg-desktop-portal-gtk", "/usr/libexec/xdg-desktop-portal-gtk",
+                                          "/usr/share/xdg-desktop-portal/portals/gtk.portal"))
+
+
+def env_content(mode: str, qt: str, fmt: str) -> str:
+    """hyprstudio_look.lua/.conf: GTK_THEME für Apps, die das Portal nicht fragen, Qt-Thema, D-Bus-Umgebung."""
+    theme = "Adwaita:dark" if mode == "dark" else "Adwaita"
+    c = "--" if fmt == "lua" else "#"
+    out = [f"{c} {MARK} – Hell/Dunkel, automatisch erzeugt (Sonstiges › Hell / Dunkel)"]
+    if fmt == "lua":
+        out.append(f'hl.env("GTK_THEME", "{theme}")')
+        if qt:
+            out.append(f'hl.env("QT_QPA_PLATFORMTHEME", "{qt}")')
+        out += ['hl.on("hyprland.start", function ()', f'    hl.exec_cmd("{DBUS_ENV}")', "end)"]
+    else:
+        out.append(f"env = GTK_THEME,{theme}")
+        if qt:
+            out.append(f"env = QT_QPA_PLATFORMTHEME,{qt}")
+        out.append(f"exec-once = {DBUS_ENV}")
+    return "\n".join(out) + "\n"
+
+
+def apply_env(mode: str, cfg_home: Path, log) -> bool:
+    from . import laptopkeys  # Helfer zum Einbinden kleiner Zusatzdateien
+    qt = qt_platform_theme()
+    return laptopkeys.include_extra(cfg_home / "hypr", "look", lambda fmt: env_content(mode, qt, fmt),
+                                    "Hell/Dunkel", log) is not None
+
+
+def apply_flatpak(mode: str, log) -> None:
+    """Flatpak-Apps sehen die Umgebung von außen nicht – dort GTK_THEME einzeln setzen."""
+    if not (model.DRY or shutil.which("flatpak")):
+        return
+    theme = "Adwaita:dark" if mode == "dark" else "Adwaita"
+    model.run(["flatpak", "override", "--user", f"--env=GTK_THEME={theme}"], log, quiet=True)
+
+
 def apply(mode: str, cfg_home: Path, log) -> bool:
     dark = mode == "dark"
     for d in ("gtk-3.0", "gtk-4.0"):
@@ -202,4 +267,12 @@ def apply(mode: str, cfg_home: Path, log) -> bool:
                    "Adwaita-dark" if dark else "Adwaita"], log, quiet=True)
     apply_kde(mode, cfg_home, log)
     apply_qtct(mode, cfg_home, log)
+    write_portals_conf(cfg_home, log)
+    apply_env(mode, cfg_home, log)
+    apply_flatpak(mode, log)
+    if model.DRY or shutil.which("systemctl"):  # laufende Apps bekommen den Wechsel sofort übers Portal mit
+        model.run(["systemctl", "--user", "try-restart", "xdg-desktop-portal.service",
+                   "xdg-desktop-portal-gtk.service"], log, quiet=True)
+    if model.DRY or shutil.which("hyprctl"):
+        model.run(["hyprctl", "reload"], log, quiet=True)
     return True

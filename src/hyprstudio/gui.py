@@ -120,6 +120,7 @@ class MainWindow(QtWidgets.QWidget):
         QtCore.QTimer.singleShot(0, self._first_look)
         QtCore.QTimer.singleShot(0, self._auto_laptop)
         QtCore.QTimer.singleShot(0, self._auto_sysactions)
+        QtCore.QTimer.singleShot(0, self._auto_look)
         cl.addWidget(self.stack, 1)
 
         foot = QtWidgets.QHBoxLayout()
@@ -365,6 +366,13 @@ class MainWindow(QtWidgets.QWidget):
         self.hypr_page.update_info()
         self.set_status(t("adv.set", name=t("fmtsw." + fmt)))
         self.log(t("adv.set", name=t("fmtsw." + fmt)))
+
+    def _auto_look(self):
+        """Hell/Dunkel bei jedem Start auffrischen: Portal-Datei und Umgebung bleiben aktuell (z. B. nach Updates)."""
+        mode = self.cfg.get("appearance")
+        if mode in appearance.MODES:
+            appearance.write_portals_conf(model.config_home(), self.log)
+            appearance.apply_env(mode, model.config_home(), self.log)
 
     def _auto_sysactions(self):
         """Herunterfahren/Neustart … in allen Launchern (an, solange der Schalter nicht aus ist)."""
