@@ -5,7 +5,7 @@ from pathlib import Path
 
 import shutil
 
-from . import appearance, dialogs, fixer, hardware, laptopkeys, model, packages, theme
+from . import appearance, dialogs, fixer, hardware, laptopkeys, model, packages, perf, theme
 from .i18n import t
 from .qt import QtCore, QtGui, QtWidgets, Qt
 from .gate import Gate
@@ -61,8 +61,8 @@ class ErrorRow(QtWidgets.QFrame):
 
 
 class OtherPage(QtWidgets.QWidget):
-    SECTIONS = ("fix", "install", "updates", "polkit", "laptop", "kitty", "look", "scroll", "tools", "backups")
-    NAV_GROUPS = (("system", ["fix", "install", "updates", "polkit", "tools", "backups"]),
+    SECTIONS = ("fix", "perf", "install", "updates", "polkit", "laptop", "kitty", "look", "scroll", "tools", "backups")
+    NAV_GROUPS = (("system", ["fix", "perf", "install", "updates", "polkit", "tools", "backups"]),
                   ("devices", ["laptop", "scroll"]), ("look", ["look", "kitty"]))
     KIND = "other"
 
@@ -240,6 +240,50 @@ class OtherPage(QtWidgets.QWidget):
         ll.addWidget(self.look_card)
         ll.addStretch()
 
+        # --- Leistung: warum Programme langsam starten, ewig laden oder abstürzen – prüfen und beheben ---
+        self.p_perf, pfl = self._page()
+        self.pf_card = Card("perf.title", self)
+        head = QtWidgets.QHBoxLayout()
+        self.pf_state = QtWidgets.QLabel()
+        self.pf_state.setObjectName("RowLabel")
+        self.pf_check = QtWidgets.QPushButton()
+        self.pf_check.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.pf_check.clicked.connect(lambda: self.refresh_perf(force=True))
+        self.pf_all = QtWidgets.QPushButton()
+        self.pf_all.setObjectName("Primary")
+        self.pf_all.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.pf_all.clicked.connect(self.perf_fix_all)
+        head.addWidget(self.pf_state, 1)
+        head.addWidget(self.pf_check)
+        head.addWidget(self.pf_all)
+        self.pf_card.layout().insertLayout(1, head)
+        self.pf_rows = {}
+        for key in ("portal", "swap", "power", "effects", "disk"):
+            st = QtWidgets.QLabel()
+            btn = QtWidgets.QPushButton()
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _=False, k=key: self.perf_fix(k))
+            row = QtWidgets.QWidget()
+            row.setMinimumWidth(620)
+            rl = QtWidgets.QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            btn.setFixedWidth(170)
+            rl.addWidget(st)
+            rl.addStretch()
+            rl.addWidget(btn)
+            self.pf_card._add("perfl." + key, row, None, "tip.perf." + key, None, label_key="perfl." + key)
+            self.pf_rows[key] = (st, btn)
+        pfl.addWidget(self.pf_card)
+        self.pf_crash_card = Card("perf.crashes", self)
+        self.pf_crash = QtWidgets.QLabel()
+        self.pf_crash.setObjectName("RowLabel")
+        self.pf_crash.setWordWrap(True)
+        self.pf_crash_card.layout().addWidget(self.pf_crash)
+        pfl.addWidget(self.pf_crash_card)
+        pfl.addStretch()
+        self._pf_info = None
+        self._pf_job = None
+
         # --- Updates: Hyprland, Waybar, Launcher einzeln oder alles ---
         self.p_updates, upl = self._page()
         self.up_card = Card("upd.title", self)
@@ -381,7 +425,7 @@ class OtherPage(QtWidgets.QWidget):
                       "cursor": Gate(self.cursor, "hyprcursor", win),
                       "lock": Gate(self.lock, "hyprlock", win)}
         self.stack.addWidget(self.gates["kitty"])
-        self.pages = {"fix": self.p_fix, "install": self.p_inst, "updates": self.p_updates, "polkit": self.p_polkit, "laptop": self.p_laptop, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
+        self.pages = {"fix": self.p_fix, "perf": self.p_perf, "install": self.p_inst, "updates": self.p_updates, "polkit": self.p_polkit, "laptop": self.p_laptop, "kitty": self.gates["kitty"], "look": self.p_look, "scroll": self.p_scroll,
                       "tools": self.p_tools, "backups": self.p_bak}
         self.show_section(win.cfg.get("other_section", "fix"))
 
@@ -417,6 +461,8 @@ class OtherPage(QtWidgets.QWidget):
             self.refresh_polkit()
         if key == "updates":
             self.refresh_updates()
+        if key == "perf":
+            self.refresh_perf()
         if key == "laptop":
             self.refresh_laptop()
         if key == "backups":
@@ -462,6 +508,120 @@ class OtherPage(QtWidgets.QWidget):
             self._apply_hypr()
             return True
         return False
+
+    # ----- Leistung -----
+    def perf_state(self) -> dict:
+        return perf.perf_state(self.win.cfg.get("perf"))
+
+    def refresh_perf(self, force: bool = False):
+        """Prüfen im Hintergrund (coredumpctl, powerprofilesctl) – die Seite bleibt bedienbar."""
+        self.pf_card.retranslate()
+        self.pf_crash_card.retranslate()
+        self.pf_check.setText(t("perf.check"))
+        self.pf_all.setText(t("perf.all"))
+        self.pf_all.setToolTip(t("tip.perf.all"))
+        if self._pf_job is not None:
+            return
+        if self._pf_info is not None and not force:
+            self._show_perf()
+            return
+        self.pf_state.setText(t("perf.checking"))
+        hdir, hs, ps = model.config_home() / "hypr", dict(self.win.hypr_page.state), self.perf_state()
+        from .paper_page import Job
+        self._pf_job = Job(lambda _log: perf.check(hdir, hs, ps), self)
+        self._pf_job.result.connect(self._perf_loaded)
+        self._pf_job.start()
+
+    def _perf_loaded(self, r):
+        self._pf_job = None
+        if isinstance(r, Exception):
+            self.win.log(f"Leistung: {r}")
+            self.pf_state.setText(t("perf.fail"))
+            return
+        self._pf_info = r
+        self._show_perf()
+
+    def _show_perf(self):
+        r = self._pf_info
+        texts = {
+            "portal": (t("perf.portal_ok") if r["portal"]["ok"] else
+                       t("perf.portal_missing", names=", ".join(r["portal"]["missing"])) if r["portal"]["missing"]
+                       else t("perf.portal_env")),
+            "swap": t("perf.swap_ok", ram=perf.size(r["swap"]["ram"]), swap=perf.size(r["swap"]["swap"]))
+            if r["swap"]["ok"] else t("perf.swap_none", ram=perf.size(r["swap"]["ram"])),
+            "power": t("perf.power", p=r["power"]["profile"] or t("perf.power_none")),
+            "effects": t("perf.effects_ok") if r["effects"]["ok"] else t("perf.effects", n=r["effects"]["passes"]),
+            "disk": t("perf.disk", free=perf.size(r["disk"]["free"]), total=perf.size(r["disk"]["total"])),
+        }
+        bad = 0
+        for key, (st, btn) in self.pf_rows.items():
+            ok = r[key]["ok"]
+            bad += not ok
+            set_chip(st, ok, texts[key])
+            btn.setText(t("perf.fix_" + key) if key != "effects" or not self.perf_state()["light"] else t("perf.effects_off"))
+            btn.setVisible(key != "disk" and (not ok or (key == "effects" and self.perf_state()["light"])))
+        self.pf_state.setText(t("perf.bad", n=bad) if bad else t("perf.good"))
+        lines = [f"{name}  ×{n}" for name, n in r["crashes"][:8]]
+        if r["hypr_crashes"]:
+            lines.insert(0, t("perf.hypr_crashes", n=r["hypr_crashes"]))
+        self.pf_crash.setText("\n".join(lines) if lines else t("perf.no_crashes"))
+
+    def _perf_write(self, ps: dict):
+        self.win.cfg["perf"] = ps
+        self.win.save_later()
+        if perf.write(model.config_home() / "hypr", ps, self.win.log):
+            model.run(["hyprctl", "reload"], self.win.log, quiet=True)
+
+    def perf_fix(self, key: str):
+        self.win.log("")
+        pm = packages.manager()
+        ps = self.perf_state()
+        r = self._pf_info or {}
+        if key == "portal":
+            ps["portal_env"] = True
+            self._perf_write(ps)
+            if r.get("portal", {}).get("missing"):
+                self.run_root(perf.portal_command(pm))
+        elif key == "swap":
+            cmd = perf.zram_command(pm)
+            if cmd:
+                self.run_root(cmd)
+        elif key == "power":
+            cmd = perf.power_command("performance")
+            if cmd:
+                model.run(cmd, self.win.log)
+        elif key == "effects":
+            ps["light"] = not ps["light"]
+            self._perf_write(ps)
+        self.win.set_status(t("perf.done"))
+        self._pf_info = None
+        QtCore.QTimer.singleShot(1500, lambda: self.refresh_perf(force=True))
+
+    def perf_fix_all(self):
+        """Alles auf einmal – nur eine Passwortabfrage für Portal-Pakete und zram."""
+        self.win.log("")
+        pm = packages.manager()
+        r = self._pf_info or {}
+        ps = self.perf_state()
+        ps["portal_env"] = True
+        ps["light"] = True
+        self._perf_write(ps)
+        root = []
+        if r.get("portal", {}).get("missing"):
+            root.append(" ".join(perf.portal_command(pm)))
+        if not r.get("swap", {}).get("ok", True):
+            z = perf.zram_command(pm)
+            if z:
+                root.append(z[2])
+        if not r.get("power", {}).get("ok", True) and r.get("power", {}).get("ac", True):
+            cmd = perf.power_command("performance")
+            if cmd:
+                model.run(cmd, self.win.log)
+        if root:
+            self.run_root(["sh", "-c", " && ".join(f"( {c} )" for c in root)])
+        self.win.set_status(t("perf.done"))
+        self._pf_info = None
+        QtCore.QTimer.singleShot(1500, lambda: self.refresh_perf(force=True))
 
     # ----- Updates -----
     def refresh_updates(self, force: bool = False):
